@@ -29,7 +29,7 @@ async def test_mock_provider_is_deterministic_for_same_input() -> None:
         ],
     )
     normalized = normalize_patient(payload)
-    graph, concerns = build_biomarker_graph(normalized=normalized)
+    _graph, concerns = build_biomarker_graph(normalized=normalized)
     provider = MockProvider()
 
     a = await provider.generate_chr_draft(

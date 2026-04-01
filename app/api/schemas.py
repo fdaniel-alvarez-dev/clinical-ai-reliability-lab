@@ -23,3 +23,15 @@ class EvaluationResponse(BaseModel):
 
 class ArtifactsResponse(BaseModel):
     artifacts: dict[str, str]
+
+
+class CreateJobResponse(BaseModel):
+    job_id: str
+    report_id: str
+    workflow_id: str
+    correlation_id: str
+    status: str = Field(description="queued|running|succeeded|failed")
+
+
+class JobResponse(BaseModel):
+    job: dict[str, object]

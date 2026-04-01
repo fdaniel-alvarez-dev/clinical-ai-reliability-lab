@@ -9,6 +9,7 @@ from app.evaluators.chr_v1_evaluator import CHRv1Evaluator
 from app.exporters.chr_v1_exporter import CHRv1Exporter
 from app.observability.logging import configure_logging
 from app.observability.otel import configure_otel, instrument_fastapi
+from app.services.job_runner import JobRunner, JobRunnerConfig
 from app.services.report_orchestrator import ReportOrchestrator
 from app.storage.sqlite_repo import SqliteReportRepository
 from app.validators.chr_v1_validator import CHRv1DeterministicValidator
@@ -40,11 +41,33 @@ def create_app() -> FastAPI:
         exporter=exporter,
         repo=repo,
         artifacts_dir=settings.artifacts_dir,
+        provider_max_attempts=settings.provider_max_attempts,
+        provider_retry_base_s=settings.provider_retry_base_s,
+        provider_retry_max_s=settings.provider_retry_max_s,
+    )
+
+    job_runner = JobRunner(
+        repo=repo,
+        orchestrator=orchestrator,
+        config=JobRunnerConfig(
+            max_attempts=settings.job_max_attempts,
+            retry_base_s=settings.provider_retry_base_s,
+            retry_max_s=settings.provider_retry_max_s,
+        ),
     )
 
     app.state.settings = settings
     app.state.repo = repo
     app.state.orchestrator = orchestrator
+    app.state.job_runner = job_runner
+
+    @app.on_event("startup")
+    async def _startup() -> None:
+        job_runner.start()
+
+    @app.on_event("shutdown")
+    async def _shutdown() -> None:
+        await job_runner.stop()
 
     app.include_router(v1_router)
     instrument_fastapi(app)

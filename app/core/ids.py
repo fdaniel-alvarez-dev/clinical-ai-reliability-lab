@@ -13,3 +13,7 @@ def new_workflow_id() -> str:
 
 def new_correlation_id() -> str:
     return f"corr_{secrets.token_urlsafe(12)}"
+
+
+def new_job_id() -> str:
+    return f"job_{secrets.token_urlsafe(12)}"

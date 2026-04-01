@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC
-from typing import Any
+from typing import Any, Literal
 
 from app.adapters.providers.base import LLMProvider
 from app.models.patient import NormalizedPatient
@@ -32,7 +32,7 @@ class MockProvider(LLMProvider):
         if workflow == "sequential_chr":
             for c in concerns:
                 kind = c.evidence[0].kind if c.evidence else "history"
-                category = "lab" if kind == "lab" else "biomarker"
+                category: Literal["lab", "biomarker"] = "lab" if kind == "lab" else "biomarker"
                 findings.append(
                     Finding(
                         finding_id=f"finding_concern_{c.concern_id}",

@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from app.models.patient import LabRefRange, LabResult, SyntheticPatientPayload
+from app.models.patient import (
+    BiomarkerPoint,
+    BiomarkerSeries,
+    GenomicVariant,
+    LabRefRange,
+    LabResult,
+    SyntheticPatientPayload,
+)
 from app.services.normalizer import fingerprint_dict, normalize_patient
 
 
@@ -33,33 +40,37 @@ def _payload() -> SyntheticPatientPayload:
             ),
         ],
         genomics=[
-            {
-                "variant_id": "v2",
-                "gene": "SYN2",
-                "variant": "rs2 A>G",
-                "zygosity": "het",
-                "significance": "unknown",
-            },
-            {
-                "variant_id": "v1",
-                "gene": "SYN1",
-                "variant": "rs1 C>T",
-                "zygosity": "hom",
-                "significance": "risk_marker",
-            },
+            GenomicVariant(
+                variant_id="v2",
+                gene="SYN2",
+                variant="rs2 A>G",
+                zygosity="het",
+                significance="unknown",
+            ),
+            GenomicVariant(
+                variant_id="v1",
+                gene="SYN1",
+                variant="rs1 C>T",
+                zygosity="hom",
+                significance="risk_marker",
+            ),
         ],
         biomarker_series=[
-            {
-                "series_id": "s1",
-                "code": "HS_CRP",
-                "name": "hs-CRP",
-                "unit": "mg/L",
-                "ref_range": {"low": 0.0, "high": 3.0},
-                "points": [
-                    {"measured_at": datetime(2026, 1, 1, 9, 0, tzinfo=UTC), "value": 1.0},
-                    {"measured_at": datetime(2026, 3, 1, 9, 0, tzinfo=UTC), "value": 4.0},
+            BiomarkerSeries(
+                series_id="s1",
+                code="HS_CRP",
+                name="hs-CRP",
+                unit="mg/L",
+                ref_range=LabRefRange(low=0.0, high=3.0),
+                points=[
+                    BiomarkerPoint(
+                        measured_at=datetime(2026, 1, 1, 9, 0, tzinfo=UTC), value=1.0
+                    ),
+                    BiomarkerPoint(
+                        measured_at=datetime(2026, 3, 1, 9, 0, tzinfo=UTC), value=4.0
+                    ),
                 ],
-            }
+            )
         ],
         scenario_tags=["b", "a"],
     )

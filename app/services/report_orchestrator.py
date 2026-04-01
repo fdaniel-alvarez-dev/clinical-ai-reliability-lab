@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from opentelemetry import trace
+from pydantic import TypeAdapter
 
 from app.adapters.providers.base import LLMProvider
 from app.core.ids import new_correlation_id, new_report_id, new_workflow_id
@@ -24,6 +25,7 @@ from app.workflows.chr.factory import normalize_workflow_name
 from app.workflows.chr.names import CHRWorkflowName
 
 tracer = trace.get_tracer(__name__)
+_payload_adapter = TypeAdapter(SyntheticPatientPayload)
 
 
 class ReportOrchestrator:
@@ -37,6 +39,9 @@ class ReportOrchestrator:
         repo: SqliteReportRepository,
         artifacts_dir: str,
         workflow_timeout_s: float = 30.0,
+        provider_max_attempts: int = 2,
+        provider_retry_base_s: float = 0.2,
+        provider_retry_max_s: float = 2.0,
     ) -> None:
         self._provider = provider
         self._validator = validator
@@ -45,30 +50,49 @@ class ReportOrchestrator:
         self._repo = repo
         self._artifacts_dir = Path(artifacts_dir)
         self._workflow_timeout_s = workflow_timeout_s
+        self._provider_max_attempts = provider_max_attempts
+        self._provider_retry_base_s = provider_retry_base_s
+        self._provider_retry_max_s = provider_retry_max_s
 
     async def generate(
-        self, *, payload: SyntheticPatientPayload, workflow: str = "chr_v1"
+        self,
+        *,
+        payload: SyntheticPatientPayload | dict[str, object],
+        workflow: str = "chr_v1",
+        report_id: str | None = None,
+        workflow_id: str | None = None,
+        correlation_id: str | None = None,
+        attempt: int | None = None,
     ) -> tuple[ComprehensiveHealthReportFinal, EvaluationResult, dict[str, str]]:
         workflow_name = normalize_workflow_name(workflow)
-        report_id = new_report_id()
-        workflow_id = new_workflow_id()
-        correlation_id = new_correlation_id()
+        report_id = report_id or new_report_id()
+        workflow_id = workflow_id or new_workflow_id()
+        correlation_id = correlation_id or new_correlation_id()
+
+        if isinstance(payload, SyntheticPatientPayload):
+            payload_model = payload
+        else:
+            payload_model = _payload_adapter.validate_python(payload)
 
         normalized: NormalizedPatient | None = None
         biomarker_graph: BiomarkerGraph | None = None
         concerns: list[BiomarkerConcern] = []
 
-        self._repo.create_report(
-            report_id=report_id,
-            workflow_id=workflow_id,
-            correlation_id=correlation_id,
-            status="running",
-        )
+        existing = self._repo.get_report(report_id=report_id)
+        if existing is None:
+            self._repo.create_report(
+                report_id=report_id,
+                workflow_id=workflow_id,
+                correlation_id=correlation_id,
+                status="running",
+            )
+        else:
+            self._repo.update_report(report_id=report_id, status="running")
 
         with tracer.start_as_current_span("workflow.generate", attributes={"report_id": report_id}):
             try:
                 async with asyncio.timeout(self._workflow_timeout_s):
-                    normalized = self._normalize(payload=payload)
+                    normalized = self._normalize(payload=payload_model)
                     biomarker_graph, concerns = self._biomarker_graph(normalized=normalized)
                     try:
                         draft = await self._draft(
@@ -113,6 +137,7 @@ class ReportOrchestrator:
                         draft=draft,
                         validation=validation,
                         evaluation=evaluation,
+                        attempt=attempt,
                     )
 
                     self._repo.update_report(
@@ -149,6 +174,7 @@ class ReportOrchestrator:
                     concerns=concerns,
                     final=final,
                     evaluation=evaluation,
+                    attempt=attempt,
                 )
                 self._repo.update_report(
                     report_id=report_id,
@@ -182,7 +208,7 @@ class ReportOrchestrator:
         concerns: list[BiomarkerConcern],
     ) -> ComprehensiveHealthReportDraft:
         with tracer.start_as_current_span(WorkflowStage.DRAFT):
-            draft_dict = await self._provider.generate_chr_draft(
+            draft_dict = await self._draft_with_retries(
                 normalized=normalized, workflow=workflow_name.value, concerns=concerns
             )
             try:
@@ -192,6 +218,29 @@ class ReportOrchestrator:
                 raise ProviderOutputInvalidError(
                     decided_at=decided_at, message="Provider output failed schema validation."
                 ) from exc
+
+    async def _draft_with_retries(
+        self,
+        *,
+        normalized: NormalizedPatient,
+        workflow: str,
+        concerns: list[BiomarkerConcern],
+    ) -> dict[str, object]:
+        last_exc: Exception | None = None
+        for attempt in range(1, self._provider_max_attempts + 1):
+            try:
+                return await self._provider.generate_chr_draft(
+                    normalized=normalized, workflow=workflow, concerns=concerns
+                )
+            except Exception as exc:
+                last_exc = exc
+                if attempt >= self._provider_max_attempts:
+                    break
+                delay_s = min(self._provider_retry_max_s, self._provider_retry_base_s * (2 ** (attempt - 1)))
+                if delay_s > 0:
+                    await asyncio.sleep(delay_s)
+        assert last_exc is not None
+        raise last_exc
 
     def _validate(
         self,
@@ -271,9 +320,12 @@ class ReportOrchestrator:
         draft: ComprehensiveHealthReportDraft | None,
         validation: ValidationDecision,
         evaluation: EvaluationResult,
+        attempt: int | None,
     ) -> dict[str, str]:
         with tracer.start_as_current_span(WorkflowStage.EXPORT):
             run_dir = self._artifacts_dir / report_id
+            if attempt is not None:
+                run_dir = run_dir / f"attempt_{attempt:02d}"
             run_dir.mkdir(parents=True, exist_ok=True)
             return self._exporter.export(
                 artifacts_dir=run_dir,
@@ -295,8 +347,11 @@ class ReportOrchestrator:
         concerns: list[BiomarkerConcern],
         final: ComprehensiveHealthReportFinal,
         evaluation: EvaluationResult,
+        attempt: int | None,
     ) -> dict[str, str]:
         run_dir = self._artifacts_dir / report_id
+        if attempt is not None:
+            run_dir = run_dir / f"attempt_{attempt:02d}"
         run_dir.mkdir(parents=True, exist_ok=True)
         index: dict[str, str] = {}
 

@@ -20,3 +20,8 @@ class Settings(BaseSettings):
     )
     otel_exporter_otlp_insecure: bool = Field(default=True, alias="OTEL_EXPORTER_OTLP_INSECURE")
     otel_service_name: str = Field(default="clinical-ai-reliability-lab", alias="OTEL_SERVICE_NAME")
+
+    job_max_attempts: int = Field(default=2, alias="JOB_MAX_ATTEMPTS", ge=1, le=10)
+    provider_max_attempts: int = Field(default=2, alias="PROVIDER_MAX_ATTEMPTS", ge=1, le=5)
+    provider_retry_base_s: float = Field(default=0.2, alias="PROVIDER_RETRY_BASE_S", ge=0.0, le=5.0)
+    provider_retry_max_s: float = Field(default=2.0, alias="PROVIDER_RETRY_MAX_S", ge=0.0, le=30.0)

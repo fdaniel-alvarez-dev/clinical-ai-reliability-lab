@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import UTC, datetime
-from typing import Iterable
 
 from app.models.patient import NormalizedBiomarkerSeries, NormalizedLab, NormalizedPatient
 from app.models.report import EvidenceRef
@@ -180,4 +180,3 @@ def _concerns_from_measurements(
                 )
 
     return concerns
-
