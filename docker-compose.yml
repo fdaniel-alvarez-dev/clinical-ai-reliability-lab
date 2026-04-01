@@ -14,12 +14,22 @@ services:
     ports:
       - "8000:8000"
 
-  # Optional local observability stack:
+  # Optional local observability stack (SigNoz + an OTLP gateway collector).
   # Enable with: `docker compose --profile observability up`
-  # This profile is intentionally minimal; see docs/observability.md for setup guidance.
   signoz:
     profiles: ["observability"]
     image: signoz/signoz:latest
     ports:
       - "3301:3301"
 
+  otel-collector:
+    profiles: ["observability"]
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./docker/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317" # OTLP gRPC (set OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317)
+      - "4318:4318" # OTLP HTTP
+    depends_on:
+      - signoz

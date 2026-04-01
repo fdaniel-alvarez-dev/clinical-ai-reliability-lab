@@ -7,6 +7,7 @@ from app.api.routes import router as v1_router
 from app.core.settings import Settings
 from app.evaluators.chr_v1_evaluator import CHRv1Evaluator
 from app.exporters.chr_v1_exporter import CHRv1Exporter
+from app.observability.correlation import CorrelationIdMiddleware
 from app.observability.logging import configure_logging
 from app.observability.otel import configure_otel, instrument_fastapi
 from app.services.job_runner import JobRunner, JobRunnerConfig
@@ -29,6 +30,7 @@ def create_app() -> FastAPI:
             "Synthetic data only. Not medical advice."
         ),
     )
+    app.add_middleware(CorrelationIdMiddleware)
 
     repo = SqliteReportRepository(db_path=settings.db_path)
     artifact_store = artifact_store_from_settings(settings=settings)

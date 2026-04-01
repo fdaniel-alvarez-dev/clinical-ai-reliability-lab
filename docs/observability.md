@@ -19,6 +19,10 @@ Workflow spans include:
 - `evaluate`
 - `export`
 
+Requests:
+- `X-Correlation-Id` is accepted and echoed back in the response.
+- The correlation id is attached to request spans as `correlation_id`.
+
 ## OTLP export (optional)
 
 Set:
@@ -30,6 +34,19 @@ If the endpoint is not configured, traces are exported to stdout via `ConsoleSpa
 
 ## SigNoz (optional)
 
-This repo includes a minimal docker-compose profile placeholder for a local observability stack.
+This repo includes a docker-compose profile for a local SigNoz UI plus an OTLP gateway collector.
 
-Trade-off: SigNoz is powerful but adds operational weight. The default posture keeps the repo runnable without it.
+Start:
+
+```bash
+docker compose --profile observability up -d
+```
+
+Configure the API to export traces to the local collector:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+export OTEL_EXPORTER_OTLP_INSECURE=true
+```
+
+Open SigNoz at `http://localhost:3301`.

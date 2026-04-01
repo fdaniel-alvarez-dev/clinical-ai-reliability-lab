@@ -39,6 +39,7 @@ async def generate_report(
     payload: SyntheticPatientPayload,
     request: Request,
     workflow: str = Query(default="chr_v1", description="chr_v1|easy_chr|sequential_chr|functional_chr"),
+    correlation_id: str | None = Header(default=None, alias="X-Correlation-Id"),
 ) -> GenerateReportResponse:
     try:
         _ = normalize_workflow_name(workflow)
@@ -46,7 +47,9 @@ async def generate_report(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     orchestrator = request.app.state.orchestrator  # type: ignore[attr-defined]
-    final, evaluation, artifacts = await orchestrator.generate(payload=payload, workflow=workflow)
+    final, evaluation, artifacts = await orchestrator.generate(
+        payload=payload, workflow=workflow, correlation_id=correlation_id
+    )
     status = (
         "failed"
         if isinstance(final.rejection, dict) and final.rejection.get("code") == "WORKFLOW_TIMEOUT"
@@ -74,6 +77,7 @@ async def create_job(
     request: Request,
     workflow: str = Query(default="chr_v1", description="chr_v1|easy_chr|sequential_chr|functional_chr"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    correlation_id: str | None = Header(default=None, alias="X-Correlation-Id"),
 ) -> CreateJobResponse:
     try:
         _ = normalize_workflow_name(workflow)
@@ -106,7 +110,7 @@ async def create_job(
     job_id = new_job_id()
     report_id = new_report_id()
     workflow_id = new_workflow_id()
-    correlation_id = new_correlation_id()
+    correlation_id = correlation_id or new_correlation_id()
     repo.create_job(
         job_id=job_id,
         workflow=workflow,
@@ -158,6 +162,7 @@ async def replay_job(
     job_id: str,
     request: Request,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    correlation_id: str | None = Header(default=None, alias="X-Correlation-Id"),
 ) -> CreateJobResponse:
     repo = request.app.state.repo  # type: ignore[attr-defined]
     job_runner = request.app.state.job_runner  # type: ignore[attr-defined]
@@ -186,7 +191,7 @@ async def replay_job(
     new_id = new_job_id()
     report_id = new_report_id()
     workflow_id = new_workflow_id()
-    correlation_id = new_correlation_id()
+    correlation_id = correlation_id or new_correlation_id()
     repo.create_job(
         job_id=new_id,
         workflow=existing.workflow,

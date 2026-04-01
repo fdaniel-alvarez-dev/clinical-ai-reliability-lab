@@ -42,6 +42,16 @@ docker compose up --build
 
 See `.env.example` for the supported configuration surface.
 
+## Observability (SigNoz)
+
+```bash
+docker compose --profile observability up -d
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+export OTEL_EXPORTER_OTLP_INSECURE=true
+```
+
+Open `http://localhost:3301`.
+
 Artifact storage (optional):
 - `ARTIFACT_STORE=local|s3|r2|gcs` (default `local`)
 - `ARTIFACT_STORE_BUCKET=...` (required for non-local)
