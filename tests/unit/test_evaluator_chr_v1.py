@@ -10,6 +10,7 @@ from app.models.patient import LabRefRange, LabResult, SyntheticPatientPayload
 from app.models.report import ComprehensiveHealthReportDraft
 from app.services.normalizer import normalize_patient
 from app.validators.chr_v1_validator import CHRv1DeterministicValidator
+from app.workflows.biomarker_graph import build_biomarker_graph
 
 
 def _payload(*, tags: list[str]) -> SyntheticPatientPayload:
@@ -39,18 +40,32 @@ async def test_evaluator_scores_accepted_higher_than_rejected() -> None:
     provider = MockProvider()
 
     norm_ok = normalize_patient(_payload(tags=[]))
+    graph_ok, concerns_ok = build_biomarker_graph(normalized=norm_ok)
     draft_ok = ComprehensiveHealthReportDraft.model_validate(
         await provider.generate_chr_draft(normalized=norm_ok)
     )
     decision_ok = validator.validate(normalized=norm_ok, draft=draft_ok)
-    eval_ok = evaluator.evaluate(normalized=norm_ok, draft=draft_ok, validation=decision_ok)
+    eval_ok = evaluator.evaluate(
+        normalized=norm_ok,
+        draft=draft_ok,
+        validation=decision_ok,
+        biomarker_graph=graph_ok,
+        concerns=concerns_ok,
+    )
 
     norm_bad = normalize_patient(_payload(tags=["omit_abnormal_biomarker"]))
+    graph_bad, concerns_bad = build_biomarker_graph(normalized=norm_bad)
     draft_bad = ComprehensiveHealthReportDraft.model_validate(
         await provider.generate_chr_draft(normalized=norm_bad)
     )
     decision_bad = validator.validate(normalized=norm_bad, draft=draft_bad)
-    eval_bad = evaluator.evaluate(normalized=norm_bad, draft=draft_bad, validation=decision_bad)
+    eval_bad = evaluator.evaluate(
+        normalized=norm_bad,
+        draft=draft_bad,
+        validation=decision_bad,
+        biomarker_graph=graph_bad,
+        concerns=concerns_bad,
+    )
 
     assert decision_ok.accepted is True
     assert decision_bad.accepted is False

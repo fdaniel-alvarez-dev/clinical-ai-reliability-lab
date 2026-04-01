@@ -7,6 +7,7 @@ from app.models.evaluation import EvaluationResult
 from app.models.patient import NormalizedPatient
 from app.models.report import ComprehensiveHealthReportDraft, ComprehensiveHealthReportFinal
 from app.models.validation import ValidationDecision
+from app.workflows.biomarker_graph.models import BiomarkerConcern, BiomarkerGraph
 
 
 class ReportExporter(ABC):
@@ -16,6 +17,8 @@ class ReportExporter(ABC):
         *,
         artifacts_dir: Path,
         normalized: NormalizedPatient,
+        biomarker_graph: BiomarkerGraph,
+        concerns: list[BiomarkerConcern],
         final: ComprehensiveHealthReportFinal,
         draft: ComprehensiveHealthReportDraft | None,
         validation: ValidationDecision,

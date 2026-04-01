@@ -19,6 +19,7 @@ from app.models.validation import ValidationDecision, ValidationIssue
 from app.services.normalizer import normalize_patient
 from app.storage.sqlite_repo import SqliteReportRepository
 from app.validators.base import ReportValidator
+from app.workflows.biomarker_graph import BiomarkerConcern, BiomarkerGraph, build_biomarker_graph
 
 tracer = trace.get_tracer(__name__)
 
@@ -51,6 +52,8 @@ class ReportOrchestrator:
         correlation_id = new_correlation_id()
 
         normalized: NormalizedPatient | None = None
+        biomarker_graph: BiomarkerGraph | None = None
+        concerns: list[BiomarkerConcern] = []
 
         self._repo.create_report(
             report_id=report_id,
@@ -63,17 +66,26 @@ class ReportOrchestrator:
             try:
                 async with asyncio.timeout(self._workflow_timeout_s):
                     normalized = self._normalize(payload=payload)
+                    biomarker_graph, concerns = self._biomarker_graph(normalized=normalized)
                     try:
                         draft = await self._draft(normalized=normalized)
                         validation = self._validate(normalized=normalized, draft=draft)
                         evaluation = self._evaluate(
-                            normalized=normalized, draft=draft, validation=validation
+                            normalized=normalized,
+                            draft=draft,
+                            validation=validation,
+                            biomarker_graph=biomarker_graph,
+                            concerns=concerns,
                         )
                     except ProviderOutputInvalidError as err:
                         validation = provider_output_invalid_decision(err=err)
                         draft = None
                         evaluation = self._evaluator.evaluate(
-                            normalized=normalized, draft=None, validation=validation
+                            normalized=normalized,
+                            draft=None,
+                            validation=validation,
+                            biomarker_graph=biomarker_graph,
+                            concerns=concerns,
                         )
                     final = self._finalize(
                         report_id=report_id,
@@ -85,6 +97,8 @@ class ReportOrchestrator:
                     artifacts_index = self._export(
                         report_id=report_id,
                         normalized=normalized,
+                        biomarker_graph=biomarker_graph,
+                        concerns=concerns,
                         final=final,
                         draft=draft,
                         validation=validation,
@@ -119,7 +133,12 @@ class ReportOrchestrator:
                     notes=["Workflow timeout."],
                 )
                 artifacts_index_timeout = self._export_timeout_failure(
-                    report_id=report_id, normalized=normalized, final=final, evaluation=evaluation
+                    report_id=report_id,
+                    normalized=normalized,
+                    biomarker_graph=biomarker_graph,
+                    concerns=concerns,
+                    final=final,
+                    evaluation=evaluation,
                 )
                 self._repo.update_report(
                     report_id=report_id,
@@ -134,6 +153,16 @@ class ReportOrchestrator:
     def _normalize(self, *, payload: SyntheticPatientPayload) -> NormalizedPatient:
         with tracer.start_as_current_span(WorkflowStage.NORMALIZE):
             return normalize_patient(payload)
+
+    def _biomarker_graph(
+        self, *, normalized: NormalizedPatient
+    ) -> tuple[BiomarkerGraph, list[BiomarkerConcern]]:
+        with tracer.start_as_current_span(WorkflowStage.BIOMARKER_GRAPH) as span:
+            graph, concerns = build_biomarker_graph(normalized=normalized)
+            span.set_attribute("biomarker_graph.node_count", len(graph.nodes))
+            span.set_attribute("biomarker_graph.edge_count", len(graph.edges))
+            span.set_attribute("biomarker_graph.concern_count", len(concerns))
+            return graph, concerns
 
     async def _draft(self, *, normalized: NormalizedPatient) -> ComprehensiveHealthReportDraft:
         with tracer.start_as_current_span(WorkflowStage.DRAFT):
@@ -158,10 +187,16 @@ class ReportOrchestrator:
         normalized: NormalizedPatient,
         draft: ComprehensiveHealthReportDraft,
         validation: ValidationDecision,
+        biomarker_graph: BiomarkerGraph,
+        concerns: list[BiomarkerConcern],
     ) -> EvaluationResult:
         with tracer.start_as_current_span(WorkflowStage.EVALUATE):
             return self._evaluator.evaluate(
-                normalized=normalized, draft=draft, validation=validation
+                normalized=normalized,
+                draft=draft,
+                validation=validation,
+                biomarker_graph=biomarker_graph,
+                concerns=concerns,
             )
 
     def _finalize(
@@ -202,6 +237,8 @@ class ReportOrchestrator:
         *,
         report_id: str,
         normalized: NormalizedPatient,
+        biomarker_graph: BiomarkerGraph,
+        concerns: list[BiomarkerConcern],
         final: ComprehensiveHealthReportFinal,
         draft: ComprehensiveHealthReportDraft | None,
         validation: ValidationDecision,
@@ -213,6 +250,8 @@ class ReportOrchestrator:
             return self._exporter.export(
                 artifacts_dir=run_dir,
                 normalized=normalized,
+                biomarker_graph=biomarker_graph,
+                concerns=concerns,
                 final=final,
                 draft=draft,
                 validation=validation,
@@ -224,6 +263,8 @@ class ReportOrchestrator:
         *,
         report_id: str,
         normalized: NormalizedPatient | None,
+        biomarker_graph: BiomarkerGraph | None,
+        concerns: list[BiomarkerConcern],
         final: ComprehensiveHealthReportFinal,
         evaluation: EvaluationResult,
     ) -> dict[str, str]:
@@ -238,6 +279,11 @@ class ReportOrchestrator:
 
         if normalized is not None:
             _write_json("normalized_input.json", normalized.model_dump(mode="json"))
+            graph = biomarker_graph
+            if graph is None:
+                graph, concerns = build_biomarker_graph(normalized=normalized)
+            _write_json("biomarker_graph.json", graph.model_dump(mode="json"))
+            _write_json("concerns.json", {"concerns": [c.model_dump(mode="json") for c in concerns]})
         _write_json("evaluation.json", evaluation.model_dump(mode="json"))
         _write_json("final.json", final.model_dump(mode="json"))
 

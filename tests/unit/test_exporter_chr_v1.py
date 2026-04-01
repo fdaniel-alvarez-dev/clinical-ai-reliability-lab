@@ -11,6 +11,7 @@ from app.models.patient import LabRefRange, LabResult, SyntheticPatientPayload
 from app.models.report import ComprehensiveHealthReportDraft, ComprehensiveHealthReportFinal
 from app.models.validation import ValidationDecision
 from app.services.normalizer import normalize_patient
+from app.workflows.biomarker_graph import build_biomarker_graph
 
 
 @pytest.mark.parametrize("accepted", [True, False])
@@ -32,6 +33,7 @@ def test_exporter_writes_expected_artifacts(tmp_path: Path, accepted: bool) -> N
         ],
     )
     normalized = normalize_patient(payload)
+    graph, concerns = build_biomarker_graph(normalized=normalized)
     draft = ComprehensiveHealthReportDraft(
         generated_at=payload.generated_at,
         executive_summary="Synthetic summary.",
@@ -56,6 +58,8 @@ def test_exporter_writes_expected_artifacts(tmp_path: Path, accepted: bool) -> N
     index = CHRv1Exporter().export(
         artifacts_dir=run_dir,
         normalized=normalized,
+        biomarker_graph=graph,
+        concerns=concerns,
         final=final,
         draft=draft,
         validation=decision,
@@ -63,6 +67,8 @@ def test_exporter_writes_expected_artifacts(tmp_path: Path, accepted: bool) -> N
     )
 
     assert (run_dir / "normalized_input.json").exists()
+    assert (run_dir / "biomarker_graph.json").exists()
+    assert (run_dir / "concerns.json").exists()
     assert (run_dir / "validation_decision.json").exists()
     assert (run_dir / "evaluation.json").exists()
     assert (run_dir / "final.json").exists()

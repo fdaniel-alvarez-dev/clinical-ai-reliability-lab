@@ -13,6 +13,7 @@ from app.models.evaluation import EvaluationResult
 from app.models.patient import NormalizedPatient
 from app.models.report import ComprehensiveHealthReportDraft, ComprehensiveHealthReportFinal
 from app.models.validation import ValidationDecision
+from app.workflows.biomarker_graph.models import BiomarkerConcern, BiomarkerGraph
 
 
 class CHRv1Exporter(ReportExporter):
@@ -21,6 +22,8 @@ class CHRv1Exporter(ReportExporter):
         *,
         artifacts_dir: Path,
         normalized: NormalizedPatient,
+        biomarker_graph: BiomarkerGraph,
+        concerns: list[BiomarkerConcern],
         final: ComprehensiveHealthReportFinal,
         draft: ComprehensiveHealthReportDraft | None,
         validation: ValidationDecision,
@@ -37,6 +40,8 @@ class CHRv1Exporter(ReportExporter):
             index[name] = str(path.relative_to(artifacts_dir.parent))
 
         _write_json("normalized_input.json", normalized.model_dump(mode="json"))
+        _write_json("biomarker_graph.json", biomarker_graph.model_dump(mode="json"))
+        _write_json("concerns.json", {"concerns": [c.model_dump(mode="json") for c in concerns]})
         if draft is not None:
             _write_json("model_draft.json", draft.model_dump(mode="json"))
         _write_json("validation_decision.json", validation.model_dump(mode="json"))

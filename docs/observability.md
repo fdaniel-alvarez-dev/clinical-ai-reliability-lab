@@ -13,6 +13,7 @@ FastAPI is instrumented via `opentelemetry-instrumentation-fastapi`.
 
 Workflow spans include:
 - `normalize`
+- `biomarker_graph`
 - `draft`
 - `validate`
 - `evaluate`
@@ -32,4 +33,3 @@ If the endpoint is not configured, traces are exported to stdout via `ConsoleSpa
 This repo includes a minimal docker-compose profile placeholder for a local observability stack.
 
 Trade-off: SigNoz is powerful but adds operational weight. The default posture keeps the repo runnable without it.
-

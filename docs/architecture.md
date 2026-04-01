@@ -17,22 +17,27 @@ The workflow produces a **Comprehensive Health Report (CHR)** from **synthetic**
    - Derive simple lab interpretations (`low|normal|high`).
    - Compute a deterministic fingerprint over normalized input for traceability.
 
-3. **Draft (provider)**
+3. **Biomarker Graph (deterministic)**
+   - Build a simple, explicit graph over labs + longitudinal biomarker series.
+   - Emit deterministic "concerns" derived from abnormal values or rising trends.
+   - This stage is fully deterministic and produces inspectable artifacts.
+
+4. **Draft (provider)**
    - Default: deterministic mock provider (`LLM_PROVIDER=mock`) so the repo is runnable without external credentials.
    - Optional: Anthropic adapter (`LLM_PROVIDER=anthropic`) for stakeholders who want to see an actual provider interface.
    - Provider output is treated as an *untrusted draft*.
 
-4. **Validate (deterministic)**
+5. **Validate (deterministic)**
    - Reject unsupported claims (evidence refs must exist).
    - Reject contradictory statements (e.g., "LDL normal" when LDL is high).
    - Reject critical omissions (abnormal labs must be covered).
    - Reject prescriptive language and "medical advice" patterns (this is an educational demo).
 
-5. **Evaluate**
+6. **Evaluate**
    - Produce simple, inspectable scores (consistency/completeness/traceability/contradiction risk).
    - Evaluation never overrides validation. It exists to help reviewers inspect outcomes.
 
-6. **Export + Persist**
+7. **Export + Persist**
    - Accepted: `report.md` + `report.pdf` + JSON artifacts.
    - Rejected: `rejection.md` + JSON artifacts (including model draft when available).
    - Persist summary to SQLite for retrieval via API endpoints.
@@ -42,6 +47,8 @@ The workflow produces a **Comprehensive Health Report (CHR)** from **synthetic**
 Each run creates an artifacts folder under `ARTIFACTS_DIR/<report_id>/`:
 
 - `normalized_input.json`
+- `biomarker_graph.json`
+- `concerns.json`
 - `model_draft.json` (when available)
 - `validation_decision.json`
 - `evaluation.json`
@@ -55,4 +62,3 @@ This is intentional: a reviewer can trace exactly what happened and why.
 - **Validator simplicity over clever NLP**: the deterministic rules are intentionally explicit and auditable.
 - **Mock-first provider**: a working repo without paid APIs is more useful than a "requires key" demo.
 - **Small module boundaries**: orchestration, validation, evaluation, export, and storage are separated so they can be tested independently.
-

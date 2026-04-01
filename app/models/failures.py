@@ -17,6 +17,7 @@ class FailureCode(StrEnum):
 class WorkflowStage(StrEnum):
     INGEST = "ingest"
     NORMALIZE = "normalize"
+    BIOMARKER_GRAPH = "biomarker_graph"
     DRAFT = "draft"
     VALIDATE = "validate"
     EVALUATE = "evaluate"

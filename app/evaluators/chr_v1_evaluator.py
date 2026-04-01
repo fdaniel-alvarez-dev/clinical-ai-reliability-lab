@@ -8,6 +8,7 @@ from app.models.failures import FailureCode
 from app.models.patient import NormalizedPatient
 from app.models.report import ComprehensiveHealthReportDraft
 from app.models.validation import ValidationDecision
+from app.workflows.biomarker_graph.models import BiomarkerConcern, BiomarkerGraph
 
 
 class CHRv1Evaluator(ReportEvaluator):
@@ -25,8 +26,16 @@ class CHRv1Evaluator(ReportEvaluator):
         normalized: NormalizedPatient,
         draft: ComprehensiveHealthReportDraft | None,
         validation: ValidationDecision,
+        biomarker_graph: BiomarkerGraph,
+        concerns: list[BiomarkerConcern],
     ) -> EvaluationResult:
         evaluated_at = datetime.now(tz=UTC)
+
+        node_count = len(biomarker_graph.nodes)
+        edge_count = len(biomarker_graph.edges)
+        domain_count = sum(1 for n in biomarker_graph.nodes if n.kind == "domain")
+        concern_count = len(concerns)
+        domain_coverage = round(min(1.0, domain_count / 3.0), 4)
 
         abnormal_lab_ids = {lab.lab_id for lab in normalized.labs if lab.interpretation != "normal"}
 
@@ -35,7 +44,13 @@ class CHRv1Evaluator(ReportEvaluator):
                 evaluated_at=evaluated_at,
                 scores={"overall": 0.0},
                 notes=["No draft available for evaluation."],
-                metrics={"abnormal_lab_count": float(len(abnormal_lab_ids))},
+                metrics={
+                    "abnormal_lab_count": float(len(abnormal_lab_ids)),
+                    "biomarker_graph_node_count": float(node_count),
+                    "biomarker_graph_edge_count": float(edge_count),
+                    "biomarker_graph_domain_coverage": float(domain_coverage),
+                    "biomarker_concern_count": float(concern_count),
+                },
             )
 
         referenced_lab_ids: set[str] = set()
@@ -101,5 +116,9 @@ class CHRv1Evaluator(ReportEvaluator):
                 "abnormal_lab_referenced_count": float(len(abnormal_lab_ids & referenced_lab_ids)),
                 "evidence_items": float(evidence_items),
                 "evidence_items_with_refs": float(evidence_with_refs),
+                "biomarker_graph_node_count": float(node_count),
+                "biomarker_graph_edge_count": float(edge_count),
+                "biomarker_graph_domain_coverage": float(domain_coverage),
+                "biomarker_concern_count": float(concern_count),
             },
         )
