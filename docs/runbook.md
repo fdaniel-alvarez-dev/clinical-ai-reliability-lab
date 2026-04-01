@@ -42,3 +42,13 @@ docker compose up --build
 
 See `.env.example` for the supported configuration surface.
 
+Artifact storage (optional):
+- `ARTIFACT_STORE=local|s3|r2|gcs` (default `local`)
+- `ARTIFACT_STORE_BUCKET=...` (required for non-local)
+- `ARTIFACT_STORE_PREFIX=...` (object key prefix; default `clinical-ai-reliability-lab`)
+- `ARTIFACT_STORE_S3_ENDPOINT_URL=...` (for R2/S3-compatible)
+- `ARTIFACT_STORE_S3_REGION=...` (optional)
+
+Dependency extras (optional):
+- S3 / R2: `python -m pip install -e ".[storage-s3]"`
+- GCS: `python -m pip install -e ".[storage-gcs]"`

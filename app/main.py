@@ -11,6 +11,7 @@ from app.observability.logging import configure_logging
 from app.observability.otel import configure_otel, instrument_fastapi
 from app.services.job_runner import JobRunner, JobRunnerConfig
 from app.services.report_orchestrator import ReportOrchestrator
+from app.storage.artifact_store_factory import artifact_store_from_settings
 from app.storage.sqlite_repo import SqliteReportRepository
 from app.validators.chr_v1_validator import CHRv1DeterministicValidator
 
@@ -30,6 +31,7 @@ def create_app() -> FastAPI:
     )
 
     repo = SqliteReportRepository(db_path=settings.db_path)
+    artifact_store = artifact_store_from_settings(settings=settings)
     provider = provider_from_settings(settings)
     validator = CHRv1DeterministicValidator()
     evaluator = CHRv1Evaluator()
@@ -40,7 +42,7 @@ def create_app() -> FastAPI:
         evaluator=evaluator,
         exporter=exporter,
         repo=repo,
-        artifacts_dir=settings.artifacts_dir,
+        artifact_store=artifact_store,
         provider_max_attempts=settings.provider_max_attempts,
         provider_retry_base_s=settings.provider_retry_base_s,
         provider_retry_max_s=settings.provider_retry_max_s,

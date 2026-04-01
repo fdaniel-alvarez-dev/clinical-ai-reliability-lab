@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any
 
 from reportlab.lib.pagesizes import letter
@@ -13,6 +11,7 @@ from app.models.evaluation import EvaluationResult
 from app.models.patient import NormalizedPatient
 from app.models.report import ComprehensiveHealthReportDraft, ComprehensiveHealthReportFinal
 from app.models.validation import ValidationDecision
+from app.storage.artifact_store import ArtifactStore
 from app.workflows.biomarker_graph.models import BiomarkerConcern, BiomarkerGraph
 
 
@@ -20,7 +19,7 @@ class CHRv1Exporter(ReportExporter):
     def export(
         self,
         *,
-        artifacts_dir: Path,
+        store: ArtifactStore,
         normalized: NormalizedPatient,
         biomarker_graph: BiomarkerGraph,
         concerns: list[BiomarkerConcern],
@@ -29,15 +28,11 @@ class CHRv1Exporter(ReportExporter):
         validation: ValidationDecision,
         evaluation: EvaluationResult,
     ) -> dict[str, str]:
-        artifacts_dir.mkdir(parents=True, exist_ok=True)
         index: dict[str, str] = {}
 
         def _write_json(name: str, payload: Any) -> None:
-            path = artifacts_dir / name
-            path.write_text(
-                json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
-            )
-            index[name] = str(path.relative_to(artifacts_dir.parent))
+            addr = store.put_json(name=name, payload=payload)
+            index[name] = addr.ref
 
         _write_json("normalized_input.json", normalized.model_dump(mode="json"))
         _write_json("biomarker_graph.json", biomarker_graph.model_dump(mode="json"))
@@ -50,20 +45,15 @@ class CHRv1Exporter(ReportExporter):
 
         if final.accepted and draft is not None:
             md = render_markdown_report(final=final, draft=draft, evaluation=evaluation)
-            md_path = artifacts_dir / "report.md"
-            md_path.write_text(md, encoding="utf-8")
-            index["report.md"] = str(md_path.relative_to(artifacts_dir.parent))
+            index["report.md"] = store.put_text(name="report.md", content=md).ref
 
-            pdf_path = artifacts_dir / "report.pdf"
-            render_pdf_report(pdf_path=pdf_path, final=final, draft=draft, evaluation=evaluation)
-            index["report.pdf"] = str(pdf_path.relative_to(artifacts_dir.parent))
+            pdf_bytes = render_pdf_bytes(final=final, draft=draft, evaluation=evaluation)
+            index["report.pdf"] = store.put_bytes(name="report.pdf", content=pdf_bytes).ref
         else:
             md = render_markdown_rejection(
                 final=final, validation=validation, evaluation=evaluation
             )
-            md_path = artifacts_dir / "rejection.md"
-            md_path.write_text(md, encoding="utf-8")
-            index["rejection.md"] = str(md_path.relative_to(artifacts_dir.parent))
+            index["rejection.md"] = store.put_text(name="rejection.md", content=md).ref
 
         _write_json("artifacts_index.json", index)
         return index
@@ -132,16 +122,16 @@ def render_markdown_rejection(
     return "\n".join(lines) + "\n"
 
 
-def render_pdf_report(
+def render_pdf_bytes(
     *,
-    pdf_path: Path,
     final: ComprehensiveHealthReportFinal,
     draft: ComprehensiveHealthReportDraft,
     evaluation: EvaluationResult,
-) -> None:
-    doc = SimpleDocTemplate(
-        str(pdf_path), pagesize=letter, title="Comprehensive Health Report (CHR)"
-    )
+) -> bytes:
+    import io
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=letter, title="Comprehensive Health Report (CHR)")
     styles = getSampleStyleSheet()
     story: list[Flowable] = []
 
@@ -177,3 +167,4 @@ def render_pdf_report(
         story.append(Paragraph(f"{k}: {v}", styles["Normal"]))
 
     doc.build(story)
+    return buf.getvalue()

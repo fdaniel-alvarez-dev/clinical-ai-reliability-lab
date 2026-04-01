@@ -42,6 +42,10 @@ The workflow produces a **Comprehensive Health Report (CHR)** from **synthetic**
    - Rejected: `rejection.md` + JSON artifacts (including model draft when available).
    - Persist summary to SQLite for retrieval via API endpoints.
 
+Artifact storage:
+- Default: local filesystem under `ARTIFACTS_DIR/`.
+- Optional: remote artifact stores via `ARTIFACT_STORE=s3|r2|gcs` (see `docs/runbook.md`).
+
 ## Artifacts
 
 Each run creates an artifacts folder under `ARTIFACTS_DIR/<report_id>/`:

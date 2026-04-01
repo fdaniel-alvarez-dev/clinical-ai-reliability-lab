@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from datetime import UTC, datetime
-from pathlib import Path
 
 from opentelemetry import trace
 from pydantic import TypeAdapter
@@ -18,6 +16,7 @@ from app.models.patient import NormalizedPatient, SyntheticPatientPayload
 from app.models.report import ComprehensiveHealthReportDraft, ComprehensiveHealthReportFinal
 from app.models.validation import ValidationDecision, ValidationIssue
 from app.services.normalizer import normalize_patient
+from app.storage.artifact_store import ArtifactStore
 from app.storage.sqlite_repo import SqliteReportRepository
 from app.validators.base import ReportValidator
 from app.workflows.biomarker_graph import BiomarkerConcern, BiomarkerGraph, build_biomarker_graph
@@ -37,7 +36,7 @@ class ReportOrchestrator:
         evaluator: ReportEvaluator,
         exporter: ReportExporter,
         repo: SqliteReportRepository,
-        artifacts_dir: str,
+        artifact_store: ArtifactStore,
         workflow_timeout_s: float = 30.0,
         provider_max_attempts: int = 2,
         provider_retry_base_s: float = 0.2,
@@ -48,7 +47,7 @@ class ReportOrchestrator:
         self._evaluator = evaluator
         self._exporter = exporter
         self._repo = repo
-        self._artifacts_dir = Path(artifacts_dir)
+        self._artifact_store = artifact_store
         self._workflow_timeout_s = workflow_timeout_s
         self._provider_max_attempts = provider_max_attempts
         self._provider_retry_base_s = provider_retry_base_s
@@ -323,12 +322,12 @@ class ReportOrchestrator:
         attempt: int | None,
     ) -> dict[str, str]:
         with tracer.start_as_current_span(WorkflowStage.EXPORT):
-            run_dir = self._artifacts_dir / report_id
+            prefix = report_id
             if attempt is not None:
-                run_dir = run_dir / f"attempt_{attempt:02d}"
-            run_dir.mkdir(parents=True, exist_ok=True)
+                prefix = f"{prefix}/attempt_{attempt:02d}"
+            store = self._artifact_store.scoped(prefix=prefix)
             return self._exporter.export(
-                artifacts_dir=run_dir,
+                store=store,
                 normalized=normalized,
                 biomarker_graph=biomarker_graph,
                 concerns=concerns,
@@ -349,16 +348,14 @@ class ReportOrchestrator:
         evaluation: EvaluationResult,
         attempt: int | None,
     ) -> dict[str, str]:
-        run_dir = self._artifacts_dir / report_id
+        prefix = report_id
         if attempt is not None:
-            run_dir = run_dir / f"attempt_{attempt:02d}"
-        run_dir.mkdir(parents=True, exist_ok=True)
+            prefix = f"{prefix}/attempt_{attempt:02d}"
+        store = self._artifact_store.scoped(prefix=prefix)
         index: dict[str, str] = {}
 
         def _write_json(name: str, payload: object) -> None:
-            path = run_dir / name
-            path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-            index[name] = str(path.relative_to(run_dir.parent))
+            index[name] = store.put_json(name=name, payload=payload).ref
 
         if normalized is not None:
             _write_json("normalized_input.json", normalized.model_dump(mode="json"))
@@ -379,9 +376,7 @@ class ReportOrchestrator:
             f"- failure: `{FailureCode.WORKFLOW_TIMEOUT}`\n\n"
             "The workflow exceeded the configured timeout and did not complete.\n"
         )
-        md_path = run_dir / "rejection.md"
-        md_path.write_text(rejection_md, encoding="utf-8")
-        index["rejection.md"] = str(md_path.relative_to(run_dir.parent))
+        index["rejection.md"] = store.put_text(name="rejection.md", content=rejection_md).ref
 
         _write_json("artifacts_index.json", index)
         return index

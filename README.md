@@ -66,6 +66,12 @@ curl -sS -X POST "http://localhost:8000/v1/reports/generate" \
 - Rejected runs export `rejection.md` plus JSON artifacts (including the model draft when available).
 - Failures are explicit and machine-readable. No polished prose hides rejections.
 
+## Artifact storage
+
+Default artifact store is local filesystem under `ARTIFACTS_DIR`.
+
+Optional remote artifact stores are supported via `ARTIFACT_STORE=s3|r2|gcs` (see `docs/runbook.md`).
+
 ## Providers
 
 Default provider is deterministic `mock` so the repo works without paid APIs.

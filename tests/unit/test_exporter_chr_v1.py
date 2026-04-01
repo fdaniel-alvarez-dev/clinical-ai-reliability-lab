@@ -11,6 +11,7 @@ from app.models.patient import LabRefRange, LabResult, SyntheticPatientPayload
 from app.models.report import ComprehensiveHealthReportDraft, ComprehensiveHealthReportFinal
 from app.models.validation import ValidationDecision
 from app.services.normalizer import normalize_patient
+from app.storage.artifact_store import LocalArtifactStore
 from app.workflows.biomarker_graph import build_biomarker_graph
 
 
@@ -54,9 +55,9 @@ def test_exporter_writes_expected_artifacts(tmp_path: Path, accepted: bool) -> N
     decision = ValidationDecision(accepted=accepted, decided_at=final.decision_at, issues=[])
     evaluation = EvaluationResult(evaluated_at=final.decision_at, scores={"overall": 1.0})
 
-    run_dir = tmp_path / "rpt_x"
+    store = LocalArtifactStore(root_dir=str(tmp_path)).scoped(prefix="rpt_x")
     index = CHRv1Exporter().export(
-        artifacts_dir=run_dir,
+        store=store,
         normalized=normalized,
         biomarker_graph=graph,
         concerns=concerns,
@@ -66,6 +67,7 @@ def test_exporter_writes_expected_artifacts(tmp_path: Path, accepted: bool) -> N
         evaluation=evaluation,
     )
 
+    run_dir = tmp_path / "rpt_x"
     assert (run_dir / "normalized_input.json").exists()
     assert (run_dir / "biomarker_graph.json").exists()
     assert (run_dir / "concerns.json").exists()

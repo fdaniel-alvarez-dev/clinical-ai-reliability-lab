@@ -14,6 +14,11 @@ class Settings(BaseSettings):
 
     db_path: str = Field(default="./artifacts/reports.sqlite", alias="DB_PATH")
     artifacts_dir: str = Field(default="./artifacts", alias="ARTIFACTS_DIR")
+    artifact_store: str = Field(default="local", alias="ARTIFACT_STORE")
+    artifact_store_bucket: str | None = Field(default=None, alias="ARTIFACT_STORE_BUCKET")
+    artifact_store_prefix: str = Field(default="clinical-ai-reliability-lab", alias="ARTIFACT_STORE_PREFIX")
+    artifact_store_s3_endpoint_url: str | None = Field(default=None, alias="ARTIFACT_STORE_S3_ENDPOINT_URL")
+    artifact_store_s3_region: str | None = Field(default=None, alias="ARTIFACT_STORE_S3_REGION")
 
     otel_exporter_otlp_endpoint: str | None = Field(
         default=None, alias="OTEL_EXPORTER_OTLP_ENDPOINT"
