@@ -1,0 +1,35 @@
+{
+  "schema_version": "v1",
+  "case_id": "case_05_abnormal_biomarker_omitted",
+  "patient_id": "synthetic_p005",
+  "generated_at": "2026-04-01T12:00:00+00:00",
+  "demographics": {
+    "age": "48",
+    "sex": "M"
+  },
+  "labs": [
+    {
+      "lab_id": "lab_ldl_20260301",
+      "code": "LDL_C",
+      "name": "LDL Cholesterol",
+      "value": 145.0,
+      "unit": "mg/dL",
+      "ref_range": { "low": 0.0, "high": 100.0 },
+      "collected_at": "2026-03-01T09:00:00+00:00"
+    },
+    {
+      "lab_id": "lab_trig_20260301",
+      "code": "TRIG",
+      "name": "Triglycerides",
+      "value": 220.0,
+      "unit": "mg/dL",
+      "ref_range": { "low": 0.0, "high": 150.0 },
+      "collected_at": "2026-03-01T09:02:00+00:00"
+    }
+  ],
+  "medications": [],
+  "imaging": [],
+  "history": [],
+  "scenario_tags": ["omit_abnormal_biomarker"]
+}
+

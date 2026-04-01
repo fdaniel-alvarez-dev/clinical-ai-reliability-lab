@@ -1,0 +1,25 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    environment:
+      - APP_ENV=container
+      - LOG_LEVEL=INFO
+      - LLM_PROVIDER=mock
+      - DB_PATH=/data/reports.sqlite
+      - ARTIFACTS_DIR=/data/artifacts
+    volumes:
+      - ./artifacts:/data
+    ports:
+      - "8000:8000"
+
+  # Optional local observability stack:
+  # Enable with: `docker compose --profile observability up`
+  # This profile is intentionally minimal; see docs/observability.md for setup guidance.
+  signoz:
+    profiles: ["observability"]
+    image: signoz/signoz:latest
+    ports:
+      - "3301:3301"
+

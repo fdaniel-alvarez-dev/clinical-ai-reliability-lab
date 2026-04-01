@@ -1,0 +1,31 @@
+{
+  "schema_version": "v1",
+  "case_id": "case_04_contradictory_lab_history",
+  "patient_id": "synthetic_p004",
+  "generated_at": "2026-04-01T12:00:00+00:00",
+  "demographics": {
+    "age": "61",
+    "sex": "F"
+  },
+  "labs": [
+    {
+      "lab_id": "lab_ldl_20260301",
+      "code": "LDL_C",
+      "name": "LDL Cholesterol",
+      "value": 160.0,
+      "unit": "mg/dL",
+      "ref_range": { "low": 0.0, "high": 100.0 },
+      "collected_at": "2026-03-01T09:00:00+00:00"
+    }
+  ],
+  "medications": [],
+  "imaging": [],
+  "history": [
+    {
+      "occurred_at": "2026-03-10",
+      "summary": "Prior note claims 'LDL normal' (synthetic contradiction intended for validation)."
+    }
+  ],
+  "scenario_tags": ["contradictory_lab_history"]
+}
+

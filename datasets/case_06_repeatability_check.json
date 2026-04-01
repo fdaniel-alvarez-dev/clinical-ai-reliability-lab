@@ -1,0 +1,40 @@
+{
+  "schema_version": "v1",
+  "case_id": "case_06_repeatability_check",
+  "patient_id": "synthetic_p006",
+  "generated_at": "2026-04-01T12:00:00+00:00",
+  "demographics": {
+    "age": "45",
+    "sex": "F"
+  },
+  "labs": [
+    {
+      "lab_id": "lab_a1c_20260301",
+      "code": "A1C",
+      "name": "HbA1c",
+      "value": 5.2,
+      "unit": "%",
+      "ref_range": { "low": 4.0, "high": 5.6 },
+      "collected_at": "2026-03-01T09:05:00+00:00"
+    },
+    {
+      "lab_id": "lab_ldl_20260301",
+      "code": "LDL_C",
+      "name": "LDL Cholesterol",
+      "value": 140.0,
+      "unit": "mg/dL",
+      "ref_range": { "low": 0.0, "high": 100.0 },
+      "collected_at": "2026-03-01T09:00:00+00:00"
+    }
+  ],
+  "medications": [],
+  "imaging": [],
+  "history": [
+    {
+      "occurred_at": "2026-03-25",
+      "summary": "Repeatability case: same structure as a stable input to test deterministic mock behavior."
+    }
+  ],
+  "scenario_tags": []
+}
+

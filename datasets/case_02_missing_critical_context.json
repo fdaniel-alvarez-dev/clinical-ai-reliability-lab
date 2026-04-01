@@ -1,0 +1,31 @@
+{
+  "schema_version": "v1",
+  "case_id": "case_02_missing_critical_context",
+  "patient_id": "synthetic_p002",
+  "generated_at": "2026-04-01T12:00:00+00:00",
+  "demographics": {
+    "age": "52",
+    "sex": "M"
+  },
+  "labs": [
+    {
+      "lab_id": "lab_ldl_20260301",
+      "code": "LDL_C",
+      "name": "LDL Cholesterol",
+      "value": 135.0,
+      "unit": "mg/dL",
+      "ref_range": { "low": 0.0, "high": 100.0 },
+      "collected_at": "2026-03-01T09:00:00+00:00"
+    }
+  ],
+  "medications": [],
+  "imaging": [],
+  "history": [
+    {
+      "occurred_at": "2026-03-20",
+      "summary": "The dataset intentionally omits family history and risk factors to test rejection behavior."
+    }
+  ],
+  "scenario_tags": ["missing_critical_context"]
+}
+
