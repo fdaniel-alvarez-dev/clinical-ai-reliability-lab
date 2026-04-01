@@ -25,7 +25,13 @@ jobs:
           mypy .
       - name: Tests
         run: |
-          pytest -q
+          pytest -q tests/unit
+      - name: Tests (integration)
+        run: |
+          pytest -q tests/integration
+      - name: Tests (e2e)
+        run: |
+          pytest -q tests/e2e
       - name: Docker build
         run: |
           docker build -f docker/Dockerfile .
