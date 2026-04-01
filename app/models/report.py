@@ -7,13 +7,20 @@ from pydantic import BaseModel, Field
 
 
 class EvidenceRef(BaseModel):
-    kind: Literal["lab", "medication", "imaging", "history"]
+    kind: Literal[
+        "lab",
+        "medication",
+        "imaging",
+        "history",
+        "genomic_variant",
+        "biomarker_series",
+    ]
     id: str = Field(description="Identifier within the normalized input (e.g., lab_id).")
 
 
 class Finding(BaseModel):
     finding_id: str
-    category: Literal["lab", "medication", "imaging", "history"]
+    category: Literal["lab", "medication", "imaging", "history", "genomics", "biomarker"]
     title: str
     statement: str
     evidence: list[EvidenceRef] = Field(default_factory=list)

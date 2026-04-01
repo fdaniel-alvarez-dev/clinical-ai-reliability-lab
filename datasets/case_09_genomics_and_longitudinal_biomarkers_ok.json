@@ -1,0 +1,45 @@
+{
+  "schema_version": "v1",
+  "case_id": "case_09_genomics_and_longitudinal_biomarkers_ok",
+  "patient_id": "synthetic_p009",
+  "generated_at": "2026-04-01T12:00:00+00:00",
+  "demographics": { "age": "47", "sex": "F" },
+  "labs": [
+    {
+      "lab_id": "lab_ldl_20260301",
+      "code": "LDL_C",
+      "name": "LDL Cholesterol",
+      "value": 110.0,
+      "unit": "mg/dL",
+      "ref_range": { "low": 0.0, "high": 100.0 },
+      "collected_at": "2026-03-01T09:00:00+00:00"
+    }
+  ],
+  "genomics": [
+    {
+      "variant_id": "var_syn_risk_002",
+      "gene": "SYN_LPA",
+      "variant": "rs8888 G>A",
+      "zygosity": "het",
+      "significance": "risk_marker",
+      "note": "Synthetic label for workflow testing only; not clinical interpretation."
+    }
+  ],
+  "biomarker_series": [
+    {
+      "series_id": "series_hs_crp",
+      "code": "HS_CRP",
+      "name": "hs-CRP",
+      "unit": "mg/L",
+      "ref_range": { "low": 0.0, "high": 3.0 },
+      "points": [
+        { "measured_at": "2026-01-01T09:00:00+00:00", "value": 0.8 },
+        { "measured_at": "2026-03-01T09:00:00+00:00", "value": 3.5 }
+      ]
+    }
+  ],
+  "medications": [],
+  "imaging": [],
+  "history": [],
+  "scenario_tags": []
+}

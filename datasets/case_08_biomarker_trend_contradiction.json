@@ -1,0 +1,26 @@
+{
+  "schema_version": "v1",
+  "case_id": "case_08_biomarker_trend_contradiction",
+  "patient_id": "synthetic_p008",
+  "generated_at": "2026-04-01T12:00:00+00:00",
+  "demographics": { "age": "42", "sex": "F" },
+  "labs": [],
+  "genomics": [],
+  "biomarker_series": [
+    {
+      "series_id": "series_hs_crp",
+      "code": "HS_CRP",
+      "name": "hs-CRP",
+      "unit": "mg/L",
+      "ref_range": { "low": 0.0, "high": 3.0 },
+      "points": [
+        { "measured_at": "2026-01-01T09:00:00+00:00", "value": 1.0 },
+        { "measured_at": "2026-03-01T09:00:00+00:00", "value": 4.0 }
+      ]
+    }
+  ],
+  "medications": [],
+  "imaging": [],
+  "history": [],
+  "scenario_tags": ["contradictory_biomarker_trend"]
+}

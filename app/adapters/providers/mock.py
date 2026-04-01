@@ -22,6 +22,51 @@ class MockProvider(LLMProvider):
         abnormal_labs = [lab for lab in normalized.labs if lab.interpretation != "normal"]
         normal_labs = [lab for lab in normalized.labs if lab.interpretation == "normal"]
 
+        # Genomics: include notable variants (synthetic annotations only).
+        for v in normalized.genomics:
+            if v.significance == "benign":
+                continue
+            findings.append(
+                Finding(
+                    finding_id=f"finding_gen_{v.variant_id}",
+                    category="genomics",
+                    title=f"Genomic marker: {v.gene} ({v.zygosity})",
+                    statement=(
+                        f"Synthetic genomic marker recorded: {v.gene} {v.variant}. "
+                        f"Annotation label: {v.significance}."
+                    ),
+                    evidence=[EvidenceRef(kind="genomic_variant", id=v.variant_id)],
+                    severity="info" if v.significance == "unknown" else "mild",
+                )
+            )
+
+        if "omit_genomic_risk_marker" in normalized.scenario_tags:
+            findings = [
+                f
+                for f in findings
+                if not any(ref.kind == "genomic_variant" for ref in f.evidence)
+            ]
+
+        # Longitudinal biomarkers: include abnormal latest values and non-stable trends.
+        for s in normalized.biomarker_series:
+            if not s.points:
+                continue
+            if s.latest_interpretation == "normal" and s.trend == "stable":
+                continue
+            findings.append(
+                Finding(
+                    finding_id=f"finding_bio_{s.series_id}",
+                    category="biomarker",
+                    title=f"{s.name}: {s.latest_interpretation.upper()} ({s.trend})",
+                    statement=(
+                        f"{s.name} ({s.code}) is {s.latest_interpretation} with a {s.trend} trend "
+                        f"based on {len(s.points)} synthetic measurement(s)."
+                    ),
+                    evidence=[EvidenceRef(kind="biomarker_series", id=s.series_id)],
+                    severity="moderate" if s.latest_interpretation in {"high", "low"} else "info",
+                )
+            )
+
         for lab in abnormal_labs:
             findings.append(
                 Finding(
@@ -38,7 +83,34 @@ class MockProvider(LLMProvider):
             )
 
         if "omit_abnormal_biomarker" in normalized.scenario_tags and abnormal_labs:
-            findings = findings[1:]
+            removed = False
+            remaining: list[Finding] = []
+            for f in findings:
+                if not removed and f.category == "lab":
+                    removed = True
+                    continue
+                remaining.append(f)
+            findings = remaining
+
+        if "contradictory_biomarker_trend" in normalized.scenario_tags:
+            for s in normalized.biomarker_series:
+                if not s.points:
+                    continue
+                claimed = "decreasing" if s.trend != "decreasing" else "increasing"
+                findings.insert(
+                    0,
+                    Finding(
+                        finding_id="finding_biomarker_contradiction_1",
+                        category="biomarker",
+                        title=f"{s.name}: {s.latest_interpretation.upper()} ({claimed})",
+                        statement=(
+                            f"{s.name} ({s.code}) is {s.latest_interpretation} with a {claimed} trend."
+                        ),
+                        evidence=[EvidenceRef(kind="biomarker_series", id=s.series_id)],
+                        severity="info",
+                    ),
+                )
+                break
 
         if "contradictory_lab_history" in normalized.scenario_tags and abnormal_labs:
             first = abnormal_labs[0]

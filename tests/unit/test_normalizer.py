@@ -32,6 +32,35 @@ def _payload() -> SyntheticPatientPayload:
                 collected_at=datetime(2026, 3, 1, 9, 5, tzinfo=UTC),
             ),
         ],
+        genomics=[
+            {
+                "variant_id": "v2",
+                "gene": "SYN2",
+                "variant": "rs2 A>G",
+                "zygosity": "het",
+                "significance": "unknown",
+            },
+            {
+                "variant_id": "v1",
+                "gene": "SYN1",
+                "variant": "rs1 C>T",
+                "zygosity": "hom",
+                "significance": "risk_marker",
+            },
+        ],
+        biomarker_series=[
+            {
+                "series_id": "s1",
+                "code": "HS_CRP",
+                "name": "hs-CRP",
+                "unit": "mg/L",
+                "ref_range": {"low": 0.0, "high": 3.0},
+                "points": [
+                    {"measured_at": datetime(2026, 1, 1, 9, 0, tzinfo=UTC), "value": 1.0},
+                    {"measured_at": datetime(2026, 3, 1, 9, 0, tzinfo=UTC), "value": 4.0},
+                ],
+            }
+        ],
         scenario_tags=["b", "a"],
     )
 
@@ -42,6 +71,10 @@ def test_normalize_patient_interpretation_and_sorting() -> None:
     assert normalized.labs[0].interpretation == "high"
     assert normalized.labs[1].interpretation == "normal"
     assert normalized.scenario_tags == ["a", "b"]
+    assert [g.variant_id for g in normalized.genomics] == ["v1", "v2"]
+    assert normalized.biomarker_series[0].series_id == "s1"
+    assert normalized.biomarker_series[0].trend == "increasing"
+    assert normalized.biomarker_series[0].latest_interpretation == "high"
 
 
 def test_fingerprint_dict_is_stable() -> None:

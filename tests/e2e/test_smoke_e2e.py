@@ -23,6 +23,9 @@ DATASET_EXPECTATIONS: list[tuple[str, bool]] = [
     ("case_04_contradictory_lab_history.json", False),
     ("case_05_abnormal_biomarker_omitted.json", False),
     ("case_06_repeatability_check.json", True),
+    ("case_07_genomics_risk_marker_omitted.json", False),
+    ("case_08_biomarker_trend_contradiction.json", False),
+    ("case_09_genomics_and_longitudinal_biomarkers_ok.json", True),
 ]
 
 

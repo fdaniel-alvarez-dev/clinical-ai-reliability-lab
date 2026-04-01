@@ -4,12 +4,20 @@ import re
 from datetime import UTC, datetime
 
 from app.models.failures import FailureCode
-from app.models.patient import NormalizedLab, NormalizedPatient
+from app.models.patient import (
+    GenomicVariant,
+    NormalizedBiomarkerSeries,
+    NormalizedLab,
+    NormalizedPatient,
+)
 from app.models.report import ComprehensiveHealthReportDraft, EvidenceRef, Recommendation
 from app.models.validation import ValidationDecision, ValidationIssue
 from app.validators.base import ReportValidator
 
 _STATUS_WORD_RE = re.compile(r"\b(high|low|normal)\b", flags=re.IGNORECASE)
+_TREND_WORD_RE = re.compile(
+    r"\b(increasing|decreasing|stable|improving|worsening)\b", flags=re.IGNORECASE
+)
 
 
 class CHRv1DeterministicValidator(ReportValidator):
@@ -27,15 +35,37 @@ class CHRv1DeterministicValidator(ReportValidator):
         issues: list[ValidationIssue] = []
 
         lab_by_id = {lab.lab_id: lab for lab in normalized.labs}
+        genomic_by_id = {g.variant_id: g for g in normalized.genomics}
+        series_by_id = {s.series_id: s for s in normalized.biomarker_series}
         med_names = {m.name for m in normalized.medications}
         imaging_keys = {(i.modality, i.performed_at.isoformat()) for i in normalized.imaging}
         history_keys = {(h.occurred_at.isoformat(), h.summary) for h in normalized.history}
 
         issues.extend(self._validate_no_medical_claims(draft=draft))
-        issues.extend(self._validate_evidence_refs(draft=draft, lab_by_id=lab_by_id))
+        issues.extend(
+            self._validate_evidence_refs(
+                draft=draft,
+                lab_by_id=lab_by_id,
+                genomic_by_id=genomic_by_id,
+                series_by_id=series_by_id,
+                med_names=med_names,
+                imaging_keys=imaging_keys,
+                history_keys=history_keys,
+            )
+        )
         issues.extend(self._validate_traceability(draft=draft))
         issues.extend(self._validate_lab_findings_consistency(draft=draft, lab_by_id=lab_by_id))
-        issues.extend(self._validate_abnormal_omissions(draft=draft, lab_by_id=lab_by_id))
+        issues.extend(
+            self._validate_biomarker_findings_consistency(draft=draft, series_by_id=series_by_id)
+        )
+        issues.extend(
+            self._validate_critical_omissions(
+                draft=draft,
+                lab_by_id=lab_by_id,
+                genomic_by_id=genomic_by_id,
+                series_by_id=series_by_id,
+            )
+        )
         issues.extend(
             self._validate_recommendations_evidence(
                 draft=draft,
@@ -72,7 +102,15 @@ class CHRv1DeterministicValidator(ReportValidator):
         return issues
 
     def _validate_evidence_refs(
-        self, *, draft: ComprehensiveHealthReportDraft, lab_by_id: dict[str, NormalizedLab]
+        self,
+        *,
+        draft: ComprehensiveHealthReportDraft,
+        lab_by_id: dict[str, NormalizedLab],
+        genomic_by_id: dict[str, GenomicVariant],
+        series_by_id: dict[str, NormalizedBiomarkerSeries],
+        med_names: set[str],
+        imaging_keys: set[tuple[str, str]],
+        history_keys: set[tuple[str, str]],
     ) -> list[ValidationIssue]:
         issues: list[ValidationIssue] = []
 
@@ -86,6 +124,50 @@ class CHRv1DeterministicValidator(ReportValidator):
                             details={"where": where, "id": item_id, "ref": ref.model_dump()},
                         )
                     )
+                if ref.kind == "genomic_variant" and ref.id not in genomic_by_id:
+                    issues.append(
+                        ValidationIssue(
+                            code=FailureCode.VALIDATION_FAILED_UNSUPPORTED_CLAIM,
+                            message=f"Evidence reference {ref.id!r} not found in genomics.",
+                            details={"where": where, "id": item_id, "ref": ref.model_dump()},
+                        )
+                    )
+                if ref.kind == "biomarker_series" and ref.id not in series_by_id:
+                    issues.append(
+                        ValidationIssue(
+                            code=FailureCode.VALIDATION_FAILED_UNSUPPORTED_CLAIM,
+                            message=f"Evidence reference {ref.id!r} not found in biomarker_series.",
+                            details={"where": where, "id": item_id, "ref": ref.model_dump()},
+                        )
+                    )
+                if ref.kind == "medication" and ref.id not in med_names:
+                    issues.append(
+                        ValidationIssue(
+                            code=FailureCode.VALIDATION_FAILED_UNSUPPORTED_CLAIM,
+                            message=f"Evidence reference {ref.id!r} not found in medications.",
+                            details={"where": where, "id": item_id, "ref": ref.model_dump()},
+                        )
+                    )
+                if ref.kind == "imaging" and ":" in ref.id:
+                    modality, performed_at = ref.id.split(":", 1)
+                    if (modality, performed_at) not in imaging_keys:
+                        issues.append(
+                            ValidationIssue(
+                                code=FailureCode.VALIDATION_FAILED_UNSUPPORTED_CLAIM,
+                                message="Evidence reference not found in imaging.",
+                                details={"where": where, "id": item_id, "ref": ref.model_dump()},
+                            )
+                        )
+                if ref.kind == "history" and ":" in ref.id:
+                    occurred_at, summary = ref.id.split(":", 1)
+                    if (occurred_at, summary) not in history_keys:
+                        issues.append(
+                            ValidationIssue(
+                                code=FailureCode.VALIDATION_FAILED_UNSUPPORTED_CLAIM,
+                                message="Evidence reference not found in history.",
+                                details={"where": where, "id": item_id, "ref": ref.model_dump()},
+                            )
+                        )
 
         for f in draft.findings:
             _check_evidence(f.evidence, "finding", f.finding_id)
@@ -93,25 +175,56 @@ class CHRv1DeterministicValidator(ReportValidator):
             _check_evidence(r.evidence, "recommendation", r.rec_id)
         return issues
 
-    def _validate_abnormal_omissions(
-        self, *, draft: ComprehensiveHealthReportDraft, lab_by_id: dict[str, NormalizedLab]
+    def _validate_critical_omissions(
+        self,
+        *,
+        draft: ComprehensiveHealthReportDraft,
+        lab_by_id: dict[str, NormalizedLab],
+        genomic_by_id: dict[str, GenomicVariant],
+        series_by_id: dict[str, NormalizedBiomarkerSeries],
     ) -> list[ValidationIssue]:
         abnormal_lab_ids = {
             lab_id for lab_id, lab in lab_by_id.items() if lab.interpretation != "normal"
         }
+        risk_variant_ids = {
+            variant_id
+            for variant_id, v in genomic_by_id.items()
+            if v.significance == "risk_marker"
+        }
+        abnormal_series_ids = {
+            series_id
+            for series_id, s in series_by_id.items()
+            if any(p.interpretation != "normal" for p in s.points)
+        }
+
         referenced_lab_ids: set[str] = set()
+        referenced_variant_ids: set[str] = set()
+        referenced_series_ids: set[str] = set()
         for f in draft.findings:
             for ref in f.evidence:
                 if ref.kind == "lab":
                     referenced_lab_ids.add(ref.id)
+                if ref.kind == "genomic_variant":
+                    referenced_variant_ids.add(ref.id)
+                if ref.kind == "biomarker_series":
+                    referenced_series_ids.add(ref.id)
 
-        missing = sorted(abnormal_lab_ids - referenced_lab_ids)
-        if missing:
+        missing_labs = sorted(abnormal_lab_ids - referenced_lab_ids)
+        missing_variants = sorted(risk_variant_ids - referenced_variant_ids)
+        missing_series = sorted(abnormal_series_ids - referenced_series_ids)
+        if missing_labs or missing_variants or missing_series:
+            details: dict[str, object] = {}
+            if missing_labs:
+                details["missing_lab_ids"] = missing_labs
+            if missing_variants:
+                details["missing_genomic_variant_ids"] = missing_variants
+            if missing_series:
+                details["missing_biomarker_series_ids"] = missing_series
             return [
                 ValidationIssue(
                     code=FailureCode.VALIDATION_FAILED_CRITICAL_OMISSION,
-                    message="Draft omitted critical abnormal lab finding(s).",
-                    details={"missing_lab_ids": missing},
+                    message="Draft omitted critical abnormal item(s) from the normalized input.",
+                    details=details,
                 )
             ]
         return []
@@ -150,6 +263,54 @@ class CHRv1DeterministicValidator(ReportValidator):
                         )
                     )
 
+        return issues
+
+    def _validate_biomarker_findings_consistency(
+        self,
+        *,
+        draft: ComprehensiveHealthReportDraft,
+        series_by_id: dict[str, NormalizedBiomarkerSeries],
+    ) -> list[ValidationIssue]:
+        issues: list[ValidationIssue] = []
+        for finding in draft.findings:
+            if finding.category != "biomarker":
+                continue
+            series_refs = [ref for ref in finding.evidence if ref.kind == "biomarker_series"]
+            if not series_refs:
+                continue
+            for ref in series_refs:
+                s = series_by_id.get(ref.id)
+                if s is None or not s.points:
+                    continue
+                text = f"{finding.title} {finding.statement}"
+                claimed_status = _claimed_status(text=text)
+                if claimed_status is not None and claimed_status != s.latest_interpretation:
+                    issues.append(
+                        ValidationIssue(
+                            code=FailureCode.VALIDATION_FAILED_CONTRADICTION,
+                            message="Biomarker finding contradicts the normalized latest interpretation.",
+                            details={
+                                "finding_id": finding.finding_id,
+                                "series_id": ref.id,
+                                "claimed": claimed_status,
+                                "actual": s.latest_interpretation,
+                            },
+                        )
+                    )
+                claimed_trend = _claimed_trend(text=text)
+                if claimed_trend is not None and claimed_trend != s.trend:
+                    issues.append(
+                        ValidationIssue(
+                            code=FailureCode.VALIDATION_FAILED_CONTRADICTION,
+                            message="Biomarker finding contradicts the normalized trend.",
+                            details={
+                                "finding_id": finding.finding_id,
+                                "series_id": ref.id,
+                                "claimed": claimed_trend,
+                                "actual": s.trend,
+                            },
+                        )
+                    )
         return issues
 
     def _validate_recommendations_evidence(
@@ -222,6 +383,18 @@ def _claimed_status(*, text: str) -> str | None:
     if not match:
         return None
     return match.group(1).lower()
+
+
+def _claimed_trend(*, text: str) -> str | None:
+    match = _TREND_WORD_RE.search(text)
+    if not match:
+        return None
+    raw = match.group(1).lower()
+    if raw == "improving":
+        return "decreasing"
+    if raw == "worsening":
+        return "increasing"
+    return raw
 
 
 def _contains_prescriptive_language(*, rec: Recommendation) -> bool:

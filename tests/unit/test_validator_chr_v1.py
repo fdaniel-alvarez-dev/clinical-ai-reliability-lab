@@ -5,7 +5,14 @@ from datetime import UTC, datetime
 import pytest
 
 from app.adapters.providers.mock import MockProvider
-from app.models.patient import LabRefRange, LabResult, SyntheticPatientPayload
+from app.models.patient import (
+    BiomarkerPoint,
+    BiomarkerSeries,
+    GenomicVariant,
+    LabRefRange,
+    LabResult,
+    SyntheticPatientPayload,
+)
 from app.models.report import ComprehensiveHealthReportDraft
 from app.services.normalizer import normalize_patient
 from app.validators.chr_v1_validator import CHRv1DeterministicValidator
@@ -91,3 +98,47 @@ async def test_validator_rejects_prescriptive_recommendation_and_missing_evidenc
         i.code in {"INSUFFICIENT_EVIDENCE", "VALIDATION_FAILED_UNSUPPORTED_CLAIM"}
         for i in decision.issues
     )
+
+
+@pytest.mark.asyncio
+async def test_validator_rejects_genomic_risk_marker_omission() -> None:
+    payload = _base_payload(tags=["omit_genomic_risk_marker"])
+    payload.genomics = [
+        GenomicVariant(
+            variant_id="v_risk_1",
+            gene="SYN_APOE",
+            variant="rs9999 C>T",
+            zygosity="het",
+            significance="risk_marker",
+        )
+    ]
+    normalized = normalize_patient(payload)
+    draft_dict = await MockProvider().generate_chr_draft(normalized=normalized)
+    draft = ComprehensiveHealthReportDraft.model_validate(draft_dict)
+    decision = CHRv1DeterministicValidator().validate(normalized=normalized, draft=draft)
+    assert decision.accepted is False
+    assert any(i.code == "VALIDATION_FAILED_CRITICAL_OMISSION" for i in decision.issues)
+
+
+@pytest.mark.asyncio
+async def test_validator_rejects_contradictory_biomarker_trend() -> None:
+    payload = _base_payload(tags=["contradictory_biomarker_trend"])
+    payload.biomarker_series = [
+        BiomarkerSeries(
+            series_id="s1",
+            code="HS_CRP",
+            name="hs-CRP",
+            unit="mg/L",
+            ref_range=LabRefRange(low=0.0, high=3.0),
+            points=[
+                BiomarkerPoint(measured_at=datetime(2026, 1, 1, 9, 0, tzinfo=UTC), value=1.0),
+                BiomarkerPoint(measured_at=datetime(2026, 3, 1, 9, 0, tzinfo=UTC), value=4.0),
+            ],
+        )
+    ]
+    normalized = normalize_patient(payload)
+    draft_dict = await MockProvider().generate_chr_draft(normalized=normalized)
+    draft = ComprehensiveHealthReportDraft.model_validate(draft_dict)
+    decision = CHRv1DeterministicValidator().validate(normalized=normalized, draft=draft)
+    assert decision.accepted is False
+    assert any(i.code == "VALIDATION_FAILED_CONTRADICTION" for i in decision.issues)

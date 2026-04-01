@@ -1,0 +1,33 @@
+{
+  "schema_version": "v1",
+  "case_id": "case_07_genomics_risk_marker_omitted",
+  "patient_id": "synthetic_p007",
+  "generated_at": "2026-04-01T12:00:00+00:00",
+  "demographics": { "age": "50", "sex": "M" },
+  "labs": [
+    {
+      "lab_id": "lab_a1c_20260301",
+      "code": "A1C",
+      "name": "HbA1c",
+      "value": 5.4,
+      "unit": "%",
+      "ref_range": { "low": 4.0, "high": 5.6 },
+      "collected_at": "2026-03-01T09:05:00+00:00"
+    }
+  ],
+  "genomics": [
+    {
+      "variant_id": "var_syn_risk_001",
+      "gene": "SYN_APOE",
+      "variant": "rs9999 C>T",
+      "zygosity": "het",
+      "significance": "risk_marker",
+      "note": "Synthetic annotation label only; not clinical interpretation."
+    }
+  ],
+  "biomarker_series": [],
+  "medications": [],
+  "imaging": [],
+  "history": [],
+  "scenario_tags": ["omit_genomic_risk_marker"]
+}
