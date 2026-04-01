@@ -18,12 +18,12 @@ If the model output is unsupported, the system rejects it loudly with machine-re
 
 ```mermaid
 flowchart LR
-  A[POST /v1/reports/generate] --> B[Ingest + Pydantic schema]
-  B --> C[Normalize + fingerprint]
-  C --> D[Provider draft (mock/anthropic)]
-  D --> E[Deterministic validator]
-  E -->|accepted| F[Evaluator + Export: JSON/MD/PDF]
-  E -->|rejected| G[Evaluator + Rejection artifact]
+  A["POST /v1/reports/generate"] --> B["Ingest + Pydantic schema"]
+  B --> C["Normalize + fingerprint"]
+  C --> D["Provider draft (mock, anthropic)"]
+  D --> E["Deterministic validator"]
+  E -->|accepted| F["Evaluator + Export (JSON, MD, PDF)"]
+  E -->|rejected| G["Evaluator + Rejection artifact"]
   F --> H[(SQLite report store)]
   G --> H
 ```
@@ -97,4 +97,3 @@ Test categories:
 - `docs/observability.md`
 - `docs/runbook.md`
 - `docs/decision-log.md`
-
