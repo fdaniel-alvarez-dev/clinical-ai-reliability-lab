@@ -74,6 +74,12 @@ async def test_generate_then_fetch_report_artifacts(
         assert "report.md" in artifacts
         assert "report.pdf" in artifacts
 
+        wf = await client.get("/v1/workflows")
+        assert wf.status_code == 200
+        workflows = wf.json()["workflows"]
+        assert "chr_v1" in workflows
+        assert "sequential_chr" in workflows
+
 
 @pytest.mark.asyncio
 async def test_generate_rejected_case_returns_rejection_artifact(
@@ -100,3 +106,41 @@ async def test_generate_rejected_case_returns_rejection_artifact(
         artifacts = art.json()["artifacts"]
         assert "rejection.md" in artifacts
         assert "model_draft.json" in artifacts
+
+
+@pytest.mark.asyncio
+async def test_generate_sequential_workflow_succeeds(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "reports.sqlite"))
+    monkeypatch.setenv("ARTIFACTS_DIR", str(tmp_path / "artifacts"))
+    monkeypatch.setenv("LLM_PROVIDER", "mock")
+
+    app = create_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        gen = await client.post(
+            "/v1/reports/generate?workflow=sequential_chr",
+            json=_payload(case_id="case_seq_ok", tags=[]),
+        )
+        assert gen.status_code == 200
+        body = gen.json()
+        assert body["accepted"] is True
+
+
+@pytest.mark.asyncio
+async def test_generate_rejects_unknown_workflow(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "reports.sqlite"))
+    monkeypatch.setenv("ARTIFACTS_DIR", str(tmp_path / "artifacts"))
+    monkeypatch.setenv("LLM_PROVIDER", "mock")
+
+    app = create_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        gen = await client.post(
+            "/v1/reports/generate?workflow=does_not_exist",
+            json=_payload(case_id="case_bad_wf", tags=[]),
+        )
+        assert gen.status_code == 400

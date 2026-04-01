@@ -16,6 +16,7 @@ from app.models.patient import (
 from app.models.report import ComprehensiveHealthReportDraft
 from app.services.normalizer import normalize_patient
 from app.validators.chr_v1_validator import CHRv1DeterministicValidator
+from app.workflows.biomarker_graph import build_biomarker_graph
 
 
 def _base_payload(*, tags: list[str] | None = None) -> SyntheticPatientPayload:
@@ -50,9 +51,14 @@ def _base_payload(*, tags: list[str] | None = None) -> SyntheticPatientPayload:
 @pytest.mark.asyncio
 async def test_validator_accepts_stable_case() -> None:
     normalized = normalize_patient(_base_payload(tags=[]))
-    draft_dict = await MockProvider().generate_chr_draft(normalized=normalized)
+    _graph, concerns = build_biomarker_graph(normalized=normalized)
+    draft_dict = await MockProvider().generate_chr_draft(
+        normalized=normalized, workflow="chr_v1", concerns=concerns
+    )
     draft = ComprehensiveHealthReportDraft.model_validate(draft_dict)
-    decision = CHRv1DeterministicValidator().validate(normalized=normalized, draft=draft)
+    decision = CHRv1DeterministicValidator().validate(
+        normalized=normalized, workflow="chr_v1", draft=draft, concerns=concerns
+    )
     assert decision.accepted is True
     assert decision.issues == []
 
@@ -60,9 +66,14 @@ async def test_validator_accepts_stable_case() -> None:
 @pytest.mark.asyncio
 async def test_validator_rejects_hallucinated_evidence_ref() -> None:
     normalized = normalize_patient(_base_payload(tags=["hallucinated_claim_risk"]))
-    draft_dict = await MockProvider().generate_chr_draft(normalized=normalized)
+    _graph, concerns = build_biomarker_graph(normalized=normalized)
+    draft_dict = await MockProvider().generate_chr_draft(
+        normalized=normalized, workflow="chr_v1", concerns=concerns
+    )
     draft = ComprehensiveHealthReportDraft.model_validate(draft_dict)
-    decision = CHRv1DeterministicValidator().validate(normalized=normalized, draft=draft)
+    decision = CHRv1DeterministicValidator().validate(
+        normalized=normalized, workflow="chr_v1", draft=draft, concerns=concerns
+    )
     assert decision.accepted is False
     assert any("not found in labs" in i.message for i in decision.issues)
 
@@ -70,9 +81,14 @@ async def test_validator_rejects_hallucinated_evidence_ref() -> None:
 @pytest.mark.asyncio
 async def test_validator_rejects_contradictory_lab_claim() -> None:
     normalized = normalize_patient(_base_payload(tags=["contradictory_lab_history"]))
-    draft_dict = await MockProvider().generate_chr_draft(normalized=normalized)
+    _graph, concerns = build_biomarker_graph(normalized=normalized)
+    draft_dict = await MockProvider().generate_chr_draft(
+        normalized=normalized, workflow="chr_v1", concerns=concerns
+    )
     draft = ComprehensiveHealthReportDraft.model_validate(draft_dict)
-    decision = CHRv1DeterministicValidator().validate(normalized=normalized, draft=draft)
+    decision = CHRv1DeterministicValidator().validate(
+        normalized=normalized, workflow="chr_v1", draft=draft, concerns=concerns
+    )
     assert decision.accepted is False
     assert any(i.code == "VALIDATION_FAILED_CONTRADICTION" for i in decision.issues)
 
@@ -80,9 +96,14 @@ async def test_validator_rejects_contradictory_lab_claim() -> None:
 @pytest.mark.asyncio
 async def test_validator_rejects_abnormal_omission() -> None:
     normalized = normalize_patient(_base_payload(tags=["omit_abnormal_biomarker"]))
-    draft_dict = await MockProvider().generate_chr_draft(normalized=normalized)
+    _graph, concerns = build_biomarker_graph(normalized=normalized)
+    draft_dict = await MockProvider().generate_chr_draft(
+        normalized=normalized, workflow="chr_v1", concerns=concerns
+    )
     draft = ComprehensiveHealthReportDraft.model_validate(draft_dict)
-    decision = CHRv1DeterministicValidator().validate(normalized=normalized, draft=draft)
+    decision = CHRv1DeterministicValidator().validate(
+        normalized=normalized, workflow="chr_v1", draft=draft, concerns=concerns
+    )
     assert decision.accepted is False
     assert any(i.code == "VALIDATION_FAILED_CRITICAL_OMISSION" for i in decision.issues)
 
@@ -90,9 +111,14 @@ async def test_validator_rejects_abnormal_omission() -> None:
 @pytest.mark.asyncio
 async def test_validator_rejects_prescriptive_recommendation_and_missing_evidence() -> None:
     normalized = normalize_patient(_base_payload(tags=["missing_critical_context"]))
-    draft_dict = await MockProvider().generate_chr_draft(normalized=normalized)
+    _graph, concerns = build_biomarker_graph(normalized=normalized)
+    draft_dict = await MockProvider().generate_chr_draft(
+        normalized=normalized, workflow="chr_v1", concerns=concerns
+    )
     draft = ComprehensiveHealthReportDraft.model_validate(draft_dict)
-    decision = CHRv1DeterministicValidator().validate(normalized=normalized, draft=draft)
+    decision = CHRv1DeterministicValidator().validate(
+        normalized=normalized, workflow="chr_v1", draft=draft, concerns=concerns
+    )
     assert decision.accepted is False
     assert any(
         i.code in {"INSUFFICIENT_EVIDENCE", "VALIDATION_FAILED_UNSUPPORTED_CLAIM"}
@@ -113,9 +139,14 @@ async def test_validator_rejects_genomic_risk_marker_omission() -> None:
         )
     ]
     normalized = normalize_patient(payload)
-    draft_dict = await MockProvider().generate_chr_draft(normalized=normalized)
+    _graph, concerns = build_biomarker_graph(normalized=normalized)
+    draft_dict = await MockProvider().generate_chr_draft(
+        normalized=normalized, workflow="chr_v1", concerns=concerns
+    )
     draft = ComprehensiveHealthReportDraft.model_validate(draft_dict)
-    decision = CHRv1DeterministicValidator().validate(normalized=normalized, draft=draft)
+    decision = CHRv1DeterministicValidator().validate(
+        normalized=normalized, workflow="chr_v1", draft=draft, concerns=concerns
+    )
     assert decision.accepted is False
     assert any(i.code == "VALIDATION_FAILED_CRITICAL_OMISSION" for i in decision.issues)
 
@@ -137,8 +168,34 @@ async def test_validator_rejects_contradictory_biomarker_trend() -> None:
         )
     ]
     normalized = normalize_patient(payload)
-    draft_dict = await MockProvider().generate_chr_draft(normalized=normalized)
+    _graph, concerns = build_biomarker_graph(normalized=normalized)
+    draft_dict = await MockProvider().generate_chr_draft(
+        normalized=normalized, workflow="chr_v1", concerns=concerns
+    )
     draft = ComprehensiveHealthReportDraft.model_validate(draft_dict)
-    decision = CHRv1DeterministicValidator().validate(normalized=normalized, draft=draft)
+    decision = CHRv1DeterministicValidator().validate(
+        normalized=normalized, workflow="chr_v1", draft=draft, concerns=concerns
+    )
     assert decision.accepted is False
     assert any(i.code == "VALIDATION_FAILED_CONTRADICTION" for i in decision.issues)
+
+
+@pytest.mark.asyncio
+async def test_sequential_workflow_requires_concern_coverage() -> None:
+    normalized = normalize_patient(_base_payload(tags=[]))
+    _graph, concerns = build_biomarker_graph(normalized=normalized)
+
+    # Create a draft with no evidence refs: sequential validator should reject if there are concerns.
+    draft = ComprehensiveHealthReportDraft(
+        generated_at=normalized.generated_at,
+        executive_summary="Synthetic summary.",
+        findings=[],
+        recommendations=[],
+        input_fingerprint="in_fp",
+        draft_fingerprint="dr_fp",
+    )
+    decision = CHRv1DeterministicValidator().validate(
+        normalized=normalized, workflow="sequential_chr", draft=draft, concerns=concerns
+    )
+    assert decision.accepted is False
+    assert any(i.code == "VALIDATION_FAILED_CRITICAL_OMISSION" for i in decision.issues)

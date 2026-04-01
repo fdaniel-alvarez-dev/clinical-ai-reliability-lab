@@ -13,6 +13,7 @@ from app.models.patient import (
 from app.models.report import ComprehensiveHealthReportDraft, EvidenceRef, Recommendation
 from app.models.validation import ValidationDecision, ValidationIssue
 from app.validators.base import ReportValidator
+from app.workflows.biomarker_graph.models import BiomarkerConcern
 
 _STATUS_WORD_RE = re.compile(r"\b(high|low|normal)\b", flags=re.IGNORECASE)
 _TREND_WORD_RE = re.compile(
@@ -30,7 +31,12 @@ class CHRv1DeterministicValidator(ReportValidator):
     """
 
     def validate(
-        self, *, normalized: NormalizedPatient, draft: ComprehensiveHealthReportDraft
+        self,
+        *,
+        normalized: NormalizedPatient,
+        workflow: str,
+        draft: ComprehensiveHealthReportDraft,
+        concerns: list[BiomarkerConcern],
     ) -> ValidationDecision:
         issues: list[ValidationIssue] = []
 
@@ -74,12 +80,48 @@ class CHRv1DeterministicValidator(ReportValidator):
                 history_keys=history_keys,
             )
         )
+        if workflow == "sequential_chr":
+            issues.extend(self._validate_concern_coverage(draft=draft, concerns=concerns))
 
         return ValidationDecision(
             accepted=len(issues) == 0,
             decided_at=datetime.now(tz=UTC),
             issues=issues,
         )
+
+    def _validate_concern_coverage(
+        self, *, draft: ComprehensiveHealthReportDraft, concerns: list[BiomarkerConcern]
+    ) -> list[ValidationIssue]:
+        if not concerns:
+            return []
+
+        draft_refs: set[tuple[str, str]] = set()
+        for f in draft.findings:
+            for ref in f.evidence:
+                draft_refs.add((ref.kind, ref.id))
+        for r in draft.recommendations:
+            for ref in r.evidence:
+                draft_refs.add((ref.kind, ref.id))
+
+        missing_concern_ids: list[str] = []
+        for c in concerns:
+            if c.severity not in {"moderate", "high"}:
+                continue
+            if not c.evidence:
+                continue
+            if any((ref.kind, ref.id) in draft_refs for ref in c.evidence):
+                continue
+            missing_concern_ids.append(c.concern_id)
+
+        if not missing_concern_ids:
+            return []
+        return [
+            ValidationIssue(
+                code=FailureCode.VALIDATION_FAILED_CRITICAL_OMISSION,
+                message="Sequential workflow draft omitted one or more moderate/high concerns.",
+                details={"missing_concern_ids": missing_concern_ids},
+            )
+        ]
 
     def _validate_traceability(
         self, *, draft: ComprehensiveHealthReportDraft

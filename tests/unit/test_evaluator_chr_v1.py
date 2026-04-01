@@ -42,9 +42,13 @@ async def test_evaluator_scores_accepted_higher_than_rejected() -> None:
     norm_ok = normalize_patient(_payload(tags=[]))
     graph_ok, concerns_ok = build_biomarker_graph(normalized=norm_ok)
     draft_ok = ComprehensiveHealthReportDraft.model_validate(
-        await provider.generate_chr_draft(normalized=norm_ok)
+        await provider.generate_chr_draft(
+            normalized=norm_ok, workflow="chr_v1", concerns=concerns_ok
+        )
     )
-    decision_ok = validator.validate(normalized=norm_ok, draft=draft_ok)
+    decision_ok = validator.validate(
+        normalized=norm_ok, workflow="chr_v1", draft=draft_ok, concerns=concerns_ok
+    )
     eval_ok = evaluator.evaluate(
         normalized=norm_ok,
         draft=draft_ok,
@@ -56,9 +60,13 @@ async def test_evaluator_scores_accepted_higher_than_rejected() -> None:
     norm_bad = normalize_patient(_payload(tags=["omit_abnormal_biomarker"]))
     graph_bad, concerns_bad = build_biomarker_graph(normalized=norm_bad)
     draft_bad = ComprehensiveHealthReportDraft.model_validate(
-        await provider.generate_chr_draft(normalized=norm_bad)
+        await provider.generate_chr_draft(
+            normalized=norm_bad, workflow="chr_v1", concerns=concerns_bad
+        )
     )
-    decision_bad = validator.validate(normalized=norm_bad, draft=draft_bad)
+    decision_bad = validator.validate(
+        normalized=norm_bad, workflow="chr_v1", draft=draft_bad, concerns=concerns_bad
+    )
     eval_bad = evaluator.evaluate(
         normalized=norm_bad,
         draft=draft_bad,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.api.schemas import (
     ArtifactsResponse,
@@ -9,6 +9,7 @@ from app.api.schemas import (
     ReportResponse,
 )
 from app.models.patient import SyntheticPatientPayload
+from app.workflows.chr.factory import available_workflows, normalize_workflow_name
 
 router = APIRouter()
 
@@ -29,10 +30,17 @@ async def ready(request: Request) -> dict[str, str]:
 
 @router.post("/v1/reports/generate", response_model=GenerateReportResponse)
 async def generate_report(
-    payload: SyntheticPatientPayload, request: Request
+    payload: SyntheticPatientPayload,
+    request: Request,
+    workflow: str = Query(default="chr_v1", description="chr_v1|easy_chr|sequential_chr|functional_chr"),
 ) -> GenerateReportResponse:
+    try:
+        _ = normalize_workflow_name(workflow)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     orchestrator = request.app.state.orchestrator  # type: ignore[attr-defined]
-    final, evaluation, artifacts = await orchestrator.generate(payload=payload)
+    final, evaluation, artifacts = await orchestrator.generate(payload=payload, workflow=workflow)
     status = (
         "failed"
         if isinstance(final.rejection, dict) and final.rejection.get("code") == "WORKFLOW_TIMEOUT"
@@ -47,6 +55,11 @@ async def generate_report(
         evaluation_overall=evaluation.scores.get("overall") if evaluation else None,
         artifacts=artifacts,
     )
+
+
+@router.get("/v1/workflows")
+async def list_workflows() -> dict[str, list[str]]:
+    return {"workflows": available_workflows()}
 
 
 @router.get("/v1/reports/{report_id}", response_model=ReportResponse)

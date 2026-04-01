@@ -7,6 +7,7 @@ import httpx
 
 from app.adapters.providers.base import LLMProvider
 from app.models.patient import NormalizedPatient
+from app.workflows.biomarker_graph.models import BiomarkerConcern
 
 
 class AnthropicProvider(LLMProvider):
@@ -22,16 +23,24 @@ class AnthropicProvider(LLMProvider):
             raise RuntimeError("ANTHROPIC_API_KEY is required when LLM_PROVIDER=anthropic")
         self._model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
 
-    async def generate_chr_draft(self, *, normalized: NormalizedPatient) -> dict[str, Any]:
+    async def generate_chr_draft(
+        self,
+        *,
+        normalized: NormalizedPatient,
+        workflow: str,
+        concerns: list[BiomarkerConcern],
+    ) -> dict[str, Any]:
         # Intentionally minimal: production use would require stricter prompting + retries + timeouts.
         # We still enforce determinism *after* generation via deterministic validators.
         prompt = {
             "task": "Generate a Comprehensive Health Report draft as strict JSON matching chr_v1.",
+            "workflow": workflow,
             "constraints": [
                 "Synthetic data only.",
                 "No diagnoses, prescribing, or medical advice.",
                 "Every finding and recommendation must include evidence refs pointing to input items.",
             ],
+            "biomarker_graph_concerns": [c.model_dump(mode="json") for c in concerns],
             "input": normalized.model_dump(mode="json"),
         }
         assert self._api_key is not None

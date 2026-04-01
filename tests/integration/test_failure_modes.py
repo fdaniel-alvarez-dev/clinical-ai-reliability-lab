@@ -14,6 +14,7 @@ from pytest import MonkeyPatch
 from app.adapters.providers.base import LLMProvider
 from app.main import create_app
 from app.models.patient import NormalizedPatient
+from app.workflows.biomarker_graph.models import BiomarkerConcern
 
 
 def _payload_ok() -> dict[str, object]:
@@ -42,7 +43,13 @@ def _payload_ok() -> dict[str, object]:
 
 
 class InvalidJSONProvider(LLMProvider):
-    async def generate_chr_draft(self, *, normalized: NormalizedPatient) -> dict[str, Any]:
+    async def generate_chr_draft(
+        self,
+        *,
+        normalized: NormalizedPatient,
+        workflow: str,
+        concerns: list[BiomarkerConcern],
+    ) -> dict[str, Any]:
         return {"not": "a chr_v1 draft"}
 
 
@@ -50,7 +57,13 @@ class SlowProvider(LLMProvider):
     def __init__(self, *, sleep_s: float) -> None:
         self._sleep_s = sleep_s
 
-    async def generate_chr_draft(self, *, normalized: NormalizedPatient) -> dict[str, Any]:
+    async def generate_chr_draft(
+        self,
+        *,
+        normalized: NormalizedPatient,
+        workflow: str,
+        concerns: list[BiomarkerConcern],
+    ) -> dict[str, Any]:
         await asyncio.sleep(self._sleep_s)
         return {"not": "a chr_v1 draft"}
 

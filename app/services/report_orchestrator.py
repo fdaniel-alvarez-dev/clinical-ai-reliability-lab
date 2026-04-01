@@ -20,6 +20,8 @@ from app.services.normalizer import normalize_patient
 from app.storage.sqlite_repo import SqliteReportRepository
 from app.validators.base import ReportValidator
 from app.workflows.biomarker_graph import BiomarkerConcern, BiomarkerGraph, build_biomarker_graph
+from app.workflows.chr.factory import normalize_workflow_name
+from app.workflows.chr.names import CHRWorkflowName
 
 tracer = trace.get_tracer(__name__)
 
@@ -45,8 +47,9 @@ class ReportOrchestrator:
         self._workflow_timeout_s = workflow_timeout_s
 
     async def generate(
-        self, *, payload: SyntheticPatientPayload
+        self, *, payload: SyntheticPatientPayload, workflow: str = "chr_v1"
     ) -> tuple[ComprehensiveHealthReportFinal, EvaluationResult, dict[str, str]]:
+        workflow_name = normalize_workflow_name(workflow)
         report_id = new_report_id()
         workflow_id = new_workflow_id()
         correlation_id = new_correlation_id()
@@ -68,8 +71,15 @@ class ReportOrchestrator:
                     normalized = self._normalize(payload=payload)
                     biomarker_graph, concerns = self._biomarker_graph(normalized=normalized)
                     try:
-                        draft = await self._draft(normalized=normalized)
-                        validation = self._validate(normalized=normalized, draft=draft)
+                        draft = await self._draft(
+                            normalized=normalized, workflow_name=workflow_name, concerns=concerns
+                        )
+                        validation = self._validate(
+                            normalized=normalized,
+                            workflow_name=workflow_name,
+                            draft=draft,
+                            concerns=concerns,
+                        )
                         evaluation = self._evaluate(
                             normalized=normalized,
                             draft=draft,
@@ -164,9 +174,17 @@ class ReportOrchestrator:
             span.set_attribute("biomarker_graph.concern_count", len(concerns))
             return graph, concerns
 
-    async def _draft(self, *, normalized: NormalizedPatient) -> ComprehensiveHealthReportDraft:
+    async def _draft(
+        self,
+        *,
+        normalized: NormalizedPatient,
+        workflow_name: CHRWorkflowName,
+        concerns: list[BiomarkerConcern],
+    ) -> ComprehensiveHealthReportDraft:
         with tracer.start_as_current_span(WorkflowStage.DRAFT):
-            draft_dict = await self._provider.generate_chr_draft(normalized=normalized)
+            draft_dict = await self._provider.generate_chr_draft(
+                normalized=normalized, workflow=workflow_name.value, concerns=concerns
+            )
             try:
                 return ComprehensiveHealthReportDraft.model_validate(draft_dict)
             except Exception as exc:
@@ -176,10 +194,20 @@ class ReportOrchestrator:
                 ) from exc
 
     def _validate(
-        self, *, normalized: NormalizedPatient, draft: ComprehensiveHealthReportDraft
+        self,
+        *,
+        normalized: NormalizedPatient,
+        workflow_name: CHRWorkflowName,
+        draft: ComprehensiveHealthReportDraft,
+        concerns: list[BiomarkerConcern],
     ) -> ValidationDecision:
         with tracer.start_as_current_span(WorkflowStage.VALIDATE):
-            return self._validator.validate(normalized=normalized, draft=draft)
+            return self._validator.validate(
+                normalized=normalized,
+                workflow=workflow_name.value,
+                draft=draft,
+                concerns=concerns,
+            )
 
     def _evaluate(
         self,

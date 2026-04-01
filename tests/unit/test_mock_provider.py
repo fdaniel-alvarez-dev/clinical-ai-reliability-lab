@@ -7,6 +7,7 @@ import pytest
 from app.adapters.providers.mock import MockProvider
 from app.models.patient import LabRefRange, LabResult, SyntheticPatientPayload
 from app.services.normalizer import normalize_patient
+from app.workflows.biomarker_graph import build_biomarker_graph
 
 
 @pytest.mark.asyncio
@@ -28,8 +29,13 @@ async def test_mock_provider_is_deterministic_for_same_input() -> None:
         ],
     )
     normalized = normalize_patient(payload)
+    graph, concerns = build_biomarker_graph(normalized=normalized)
     provider = MockProvider()
 
-    a = await provider.generate_chr_draft(normalized=normalized)
-    b = await provider.generate_chr_draft(normalized=normalized)
+    a = await provider.generate_chr_draft(
+        normalized=normalized, workflow="chr_v1", concerns=concerns
+    )
+    b = await provider.generate_chr_draft(
+        normalized=normalized, workflow="chr_v1", concerns=concerns
+    )
     assert a == b
