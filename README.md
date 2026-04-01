@@ -84,6 +84,12 @@ Optional: `LLM_PROVIDER=anthropic` requires `ANTHROPIC_API_KEY` and expects the 
 - OpenTelemetry spans across workflow stages and FastAPI
 - Optional OTLP export via `OTEL_EXPORTER_OTLP_ENDPOINT` (see `docs/observability.md`)
 
+## Minimal UI (Bubble-friendly)
+
+A minimal HTML report viewer is available for smoke testing and embed-style integration:
+
+- `GET /ui/reports/{report_id}` — accepted/rejected viewer with artifact refs
+
 ## Tests
 
 ```bash

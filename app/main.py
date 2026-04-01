@@ -14,6 +14,7 @@ from app.services.job_runner import JobRunner, JobRunnerConfig
 from app.services.report_orchestrator import ReportOrchestrator
 from app.storage.artifact_store_factory import artifact_store_from_settings
 from app.storage.sqlite_repo import SqliteReportRepository
+from app.ui.routes import router as ui_router
 from app.validators.chr_v1_validator import CHRv1DeterministicValidator
 
 
@@ -74,6 +75,7 @@ def create_app() -> FastAPI:
         await job_runner.stop()
 
     app.include_router(v1_router)
+    app.include_router(ui_router)
     instrument_fastapi(app)
     return app
 

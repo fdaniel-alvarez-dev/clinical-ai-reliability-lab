@@ -32,6 +32,21 @@ Artifacts are written under `ARTIFACTS_DIR/<report_id>/` (default `./artifacts/`
 pytest -q
 ```
 
+## Playwright (optional UI smoke)
+
+Install extras and browsers:
+
+```bash
+python -m pip install -e ".[playwright]"
+python -m playwright install chromium
+```
+
+Run:
+
+```bash
+RUN_PLAYWRIGHT=1 pytest -q tests/playwright
+```
+
 ## Docker
 
 ```bash
