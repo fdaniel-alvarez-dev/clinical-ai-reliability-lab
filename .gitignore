@@ -80,3 +80,6 @@ build/
 
 .DS_Store
 Thumbs.db
+
+# Local generated test output
+*.egg-info/
